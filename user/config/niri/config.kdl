@@ -1,0 +1,211 @@
+input {
+	keyboard {
+		xkb {
+			layout "us"
+			options "compose:102"
+		}
+		numlock
+	}
+
+	touchpad {
+		tap
+		natural-scroll
+	}
+
+	mouse {
+	}
+
+	trackpoint {
+	}
+}
+
+hotkey-overlay {
+    skip-at-startup
+}
+
+overview {
+	backdrop-color "#000000"
+}
+
+layout {
+	center-focused-column "never"
+	always-center-single-column
+
+	preset-column-widths {
+		proportion 0.33333
+		proportion 0.5
+		proportion 0.66667
+		proportion 0.5
+	}
+	default-column-width { proportion 0.5; }
+
+	focus-ring {
+		off
+	}
+
+	border {
+		width 2
+		active-gradient from="#3CADD7" to="#52EAA9" angle=45
+		inactive-gradient from="#3CADD744" to="#52EAA944" angle=45
+	}
+
+	shadow {
+		on
+		softness 8
+		spread 4
+		offset x=0 y=0
+		color "#0E151B"
+	}
+
+	gaps 4
+	struts {
+		left 8
+		right 8
+		top 8
+		bottom 8
+	}
+}
+//include "theme.kdl"
+
+prefer-no-csd
+
+environment {
+	NIRI_THEME "ring"
+}
+
+spawn-sh-at-startup "swww-daemon --no-cache & sleep 0.1 && swww img $HOME/.config/theme/$NIRI_THEME/wallpaper.* -t none"
+spawn-sh-at-startup "quickshell"
+
+screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
+animations {
+	slowdown 3.0
+}
+
+window-rule {
+	geometry-corner-radius 12
+	clip-to-geometry true
+}
+
+workspace "scratchpad"
+spawn-at-startup "niri" "msg" "action" "focus-workspace" "2"
+
+binds {
+	Mod+Shift+Slash { show-hotkey-overlay; }
+
+	// Apps
+	Mod+Return hotkey-overlay-title="Open a Terminal: Foot" { spawn "foot"; }
+	Mod+Shift+Return { spawn-sh "$HOME/.config/niri/scripts/open-left.sh foot"; }
+	Mod+Slash hotkey-overlay-title="Run an Application: ???" { spawn "fuzzel"; }
+	Mod+I hotkey-overlay-title="Launch Browser: qutebrowser" { spawn "qutebrowser";}
+	Mod+Shift+I  { spawn-sh "$HOME/.config/niri/scripts/open-left.sh qutebrowser";}
+	Mod+Space hotkey-overlay-title="Widget menu: wlr-which-key" { spawn "wlr-which-key"; }
+
+	// Quit
+	Mod+Q repeat=false { close-window; }
+
+	// XF86 Audio
+	XF86AudioRaiseVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1+"; }
+	XF86AudioLowerVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1-"; }
+	XF86AudioMute        allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"; }
+	XF86AudioMicMute     allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
+
+	// XF86 Brightness
+	XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+10%"; }
+	XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "10%-"; }
+
+	// Navigation - Overview
+	Mod+O repeat=false { toggle-overview; }
+
+	// Focus - Column/Window/Workspace
+	Mod+H         { focus-column-or-monitor-left; }
+	Mod+J         { focus-window-or-workspace-down; }
+	Mod+K         { focus-window-or-workspace-up; }
+	Mod+L         { focus-column-or-monitor-right; }
+
+	Mod+0         hotkey-overlay-title="Focus first column" { focus-column-first; }
+	Mod+Backslash hotkey-overlay-title="Focus last column" { focus-column-last; }
+
+	// Focus - Workspace
+	Mod+1 { focus-workspace 2; }
+	Mod+2 { focus-workspace 3; }
+	Mod+3 { focus-workspace 4; }
+	Mod+4 { focus-workspace 5; }
+	Mod+5 { focus-workspace 6; }
+	Mod+6 { focus-workspace 7; }
+	Mod+7 { focus-workspace 8; }
+	Mod+8 { focus-workspace 9; }
+	Mod+9 { focus-workspace 10; }
+
+	Mod+N { focus-workspace 99; }
+
+	Mod+T { focus-workspace "scratchpad"; }
+
+	// Move - Window/Column
+	Mod+Shift+J  { move-window-down-or-to-workspace-down; }
+	Mod+Shift+K  { move-window-up-or-to-workspace-up; }
+	Mod+Shift+H  { move-column-left-or-to-monitor-left; }
+	Mod+Shift+L  { move-column-right-or-to-monitor-right; }
+
+	Mod+Shift+0         { move-column-to-first; }
+	Mod+Shift+Backslash { move-column-to-last; }
+
+	Mod+Shift+1 { move-column-to-workspace 2; }
+	Mod+Shift+2 { move-column-to-workspace 3; }
+	Mod+Shift+3 { move-column-to-workspace 4; }
+	Mod+Shift+4 { move-column-to-workspace 5; }
+	Mod+Shift+5 { move-column-to-workspace 6; }
+	Mod+Shift+6 { move-column-to-workspace 7; }
+	Mod+Shift+7 { move-column-to-workspace 8; }
+	Mod+Shift+8 { move-column-to-workspace 9; }
+	Mod+Shift+9 { move-column-to-workspace 10; }
+
+	Mod+Shift+N { move-column-to-workspace 99; }
+
+	Mod+Shift+T { move-column-to-workspace "scratchpad"; }
+
+	// Arrange - Column
+	Mod+Comma  { consume-or-expel-window-left; }
+	Mod+Period { consume-or-expel-window-right; }
+
+	Mod+Shift+Comma   { consume-window-into-column; }
+	Mod+Shift+Period  { expel-window-from-column; }
+
+	Mod+W { toggle-column-tabbed-display; }
+
+	// Resize
+	Mod+R repeat=false { switch-preset-column-width; }
+	Mod+Shift+R repeat=false { switch-preset-window-height; }
+
+	Mod+Shift+W { reset-window-height; }
+
+	Mod+F { maximize-column; }
+	Mod+Shift+F { expand-column-to-available-width; }
+	Mod+F11 { fullscreen-window; }
+
+	Mod+Minus { set-column-width "-10%"; }
+	Mod+Equal { set-column-width "+10%"; }
+	Mod+Shift+Minus { set-window-height "-10%"; }
+	Mod+Shift+Equal { set-window-height "+10%"; }
+
+	// Align
+	Mod+C { center-column; }
+	Mod+Ctrl+H hotkey-overlay-title="Show with column at the left" { spawn-sh "niri msg action focus-column-left;  niri msg action focus-column-right"; }
+	Mod+Ctrl+L hotkey-overlay-title="Show with column at the right" { spawn-sh "niri msg action focus-column-right;  niri msg action focus-column-left"; }
+
+	// Floating
+	Mod+V       { toggle-window-floating; }
+	Mod+Shift+V { switch-focus-between-floating-and-tiling; }
+
+	// Misc
+	Print { screenshot; }
+	Ctrl+Print { screenshot-screen; }
+	Alt+Print { screenshot-window; }
+
+	Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
+
+	Mod+Shift+E { quit; }
+	Ctrl+Alt+Delete { quit; }
+
+	Mod+Shift+P { power-off-monitors; }
+}

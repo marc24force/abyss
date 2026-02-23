@@ -1,0 +1,15 @@
+spawn-sh-at-startup "regreet; niri msg action quit --skip-confirmation"
+hotkey-overlay {
+    skip-at-startup
+}
+
+environment {
+    GTK_USE_PORTAL "0"
+    GDK_DEBUG "no-portals"
+}
+
+cursor {
+    // Change the theme and size of the cursor as well as set the
+    // `XCURSOR_THEME` and `XCURSOR_SIZE` env variables.
+    xcursor-theme "catppuccin-mocha-red-cursors"
+}

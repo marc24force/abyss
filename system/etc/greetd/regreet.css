@@ -1,0 +1,53 @@
+entry,
+frame.background {
+	background-color: rgba(0,0,0,0.1);
+	border-radius: 6px;
+	box-shadow: 12px 12px 24px rgba(0,0,0,0.2);
+}
+
+
+button.suggested-action {
+	background-color: rgba(69,176,101,1);
+	background-image: none;
+	border-radius: 6px;
+	border: 0px
+	box-shadow: 12px 12px 24px rgba(0,0,0,0.2);
+}
+
+button.destructive-action{
+	background-color: rgba(176,66,101,1);
+	background-image: none;
+	border-radius: 6px;
+	border: 0px
+	box-shadow: 12px 12px 24px rgba(0,0,0,0.2);
+}
+
+button.suggested-action:hover{
+	background-color: rgba(45,100,60,1);
+}
+
+button.destructive-action:hover{
+	background-color: rgba(100,45,60,1);
+}
+
+
+infobar.error > revealer > box{
+	background-color: rgba(204,71,107,1);
+	background-image: none;
+	border-radius: 6px;
+	border: 0px;
+	box-shadow: 12px 12px 24px rgba(0,0,0,0.2);
+}
+
+button {
+	background-color: rgba(0,0,0,0.1);
+	background-image: none;
+	border-radius: 6px;
+	border: 1px solid rgba(0,0,0,0.2);
+	box-shadow: 12px 12px 24px rgba(0,0,0,0.2);
+}
+
+button:checked,
+button:hover {
+	background-color: rgba(200,200,200,0.1);
+}

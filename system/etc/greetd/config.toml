@@ -1,0 +1,7 @@
+[terminal]
+vt = 7
+
+[default_session]
+command = "dbus-run-session -- niri --config /etc/greetd/niri.kdl"
+#command = "tuigreet --time --remember --remember-user-session --asterisks --cmd niri --session-wrapper 'dbus-run-session' -d /tmp/tuigreet.log --power-shutdown 'sudo /sbin/poweroff' --power-reboot 'sudo /sbin/reboot' --theme 'time=lightyellow;border=lightcyan;title=cyan;prompt=lightgreen;action=lightmagenta;button=magenta'"
+user = "_greeter"

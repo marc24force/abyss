@@ -1,0 +1,16 @@
+[background]
+path = "/etc/greetd/background.png"
+
+[GTK]
+application_prefer_dark_theme = true
+cursor_theme_name = "Adwaita"
+cursor_blink = true
+theme_name = "Adwaita"
+
+
+[commands]
+poweroff = ["sudo", "poweroff"]
+reboot = ["sudo", "reboot"]
+
+[appearance]
+greeting_msg = "Enter the VOID"
