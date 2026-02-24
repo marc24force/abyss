@@ -1,10 +1,11 @@
 import QtQuick
+import QtQuick.Layouts
 
 Text {
 	id: clock
 	color: bar.colYellow
 	font { family: bar.fontFamily; pixelSize: bar.fontSize * 1.5; bold: true }
-	anchors.horizontalCenter: parent.horizontalCenter
+	Layout.alignment: Qt.AlignCenter
 
 	function updateTime() {
 		const d = new Date()

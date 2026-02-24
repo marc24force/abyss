@@ -1,10 +1,11 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 
 Text {
 	id: battery
-	anchors.horizontalCenter: parent.horizontalCenter
+	Layout.alignment: Qt.AlignCenter
 	font { family: bar.fontFamily; pixelSize: bar.fontSize}
 
 	property int updateInterval: 30000
@@ -103,7 +104,7 @@ Text {
 
 
 	readonly property string icon: {
-		if(!hasBattery) return 
+		if(!hasBattery) return ""
 		if (charging) return "󰂄"
 		if (capacity >= 90) return "󰁹"
 		if (capacity >= 70) return "󰂂"

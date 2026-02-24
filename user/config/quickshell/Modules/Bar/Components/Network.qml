@@ -1,10 +1,11 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 
 Text {
 	id: network
-	anchors.horizontalCenter: parent.horizontalCenter
+	Layout.alignment: Qt.AlignCenter
 	leftPadding: 2
 
 	font { family: bar.fontFamily; pixelSize: bar.fontSize * 1.5}
@@ -23,7 +24,7 @@ Text {
 	// Check WiFi RSSI for any station
 	Process {
 		id: checkWifi
-		command: ["bash","-c","iwctl station $(iwctl station list | head -n 5 | tail -n 1 | awk '{print $2}') show | grep -E 'AverageRSSI | disconnected' | awk '{print $2}'"]
+		command: ["bash","-c","iwctl station $(iwctl station list | head -n 5 | tail -n 1 | awk '{print $2}') show | grep -E 'RSSI | disconnected' | awk '{print $2}'"]
 		running: true
 		stdout: SplitParser {
 			onRead: data => {

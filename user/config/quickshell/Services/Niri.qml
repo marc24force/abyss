@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Wayland
 import Quickshell.Io
 
 Item {
@@ -9,10 +10,11 @@ Item {
 
 	property bool isFullScreen: false
 
+	property var activeScreen: {}
 	property var screenSize: {}
 
 	Process {
-		id: getScreenSize
+		id: updateScreen
 		running: true
 		command: ["niri", "msg", "--json", "focused-output"]
 		stdout: SplitParser {
@@ -20,6 +22,7 @@ Item {
 				var json = JSON.parse(data)
 				if(json) {
 					niri.screenSize = [json.logical.width, json.logical.height]
+					niri.activeScreen = json.name
 				}
 
 			}
@@ -44,7 +47,7 @@ Item {
 			}
 		}
 	}
-				
+
 	Process {
 		id: niriProc
 		running: true
@@ -52,7 +55,7 @@ Item {
 		stdout: SplitParser {
 			onRead: data => {
 				var json = JSON.parse(data)
-				getScreenSize.running = true
+				updateScreen.running = true
 				checkFullScreen.running = true
 			}
 		}

@@ -1,0 +1,5 @@
+#!/bin/sh
+
+[ -r ./conf ] && . ./conf
+
+exec chpst -e "$TURNSTILE_ENV_DIR" pipewire $OPTS

@@ -1,7 +1,8 @@
 import QtQuick
+import QtQuick.Layouts
 
 Rectangle {
-	anchors.horizontalCenter: parent.horizontalCenter
+	Layout.alignment: Qt.AlignCenter
 	width: parent.width - 8
 	height: 2
 	color: "lightgray"
