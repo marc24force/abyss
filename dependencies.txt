@@ -1,0 +1,41 @@
+# System basics
+greetd #service
+mesa-dri
+pipewire
+wireplumber
+xdg-desktop-portal
+xdg-desktop-portal-wlr
+
+# Seat, session, bus, network
+seatd #service
+turnstile #service turnstiled
+dbus #service
+#iwd #service
+
+# Important apps
+git
+curl
+wget
+base-devel
+qt6-wayland
+xwayland-satellite
+
+# Opinated apps
+ReGreet
+neovim
+niri
+foot
+swww
+quickshell
+qutebrowser
+
+# Other useful apps
+wlsunset
+jq
+qt6-shadertools
+
+# Fonts
+nerd-fonts
+dejavu-fonts-ttf
+font-hack-ttf
+xorg-fonts

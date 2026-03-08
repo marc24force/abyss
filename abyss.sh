@@ -1,105 +1,128 @@
 #!/usr/bin/env bash
-
-DIR=$(dirname $0)
+set -euo pipefail
 
 usage() {
-	echo "Usage: $0 [--help] [--no-sudo]"
-	echo
-	echo "  --help     Show this help message and exit"
-	echo "  --no-sudo  Skip all the steps that require sudo"
-	echo "  --yes      Skip confirmation dialogs"
-	exit 1
+	cat <<EOF >&2
+Usage: $0 [OPTIONS]
+
+Options:
+  --bootstrap   Download dependencies and configure system (requires boot)
+  --yes         Skip confirmation dialogs
+  -h, --help        Show this help message and exit
+EOF
+	exit "${1:-1}"
 }
 
+DIR=$(dirname $(realpath $0))
+DEP_FILE="$DIR/dependencies.txt"
+TARGET_USER="${SUDO_USER:-$USER}"
+TARGET_HOME=$(eval echo "~$TARGET_USER")
+
+BOOTSTRAP="false"
+YES_ALL="false"
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--bootstrap)
+			BOOTSTRAP="true"
+			shift
+			;;
+		--yes)
+			shift
+			YES_ALL="true"
+			;;
+		--help|-h)
+			usage 0
+			;;
+		*)
+			echo "Unknown argument: $1"
+			usage 1
+			;;
+	esac
+done
+
 confirm() {
-	[[ "$yes" == "-y" ]] && return 0;
+	[[ "$YES_ALL" == "true" ]] && return 0;
 	read -r -p "Do you want to continue? [Y/n] " ans
 	[[ ! "$ans" =~ ^[Nn]$ ]]
 }
 
-install() {
-	echo "Installing required packages and updating system"
-	sudo xbps-install -Su $yes xbps
-	sudo xbps-install $yes mkinitcpio
-	sudo xbps-alternatives -s mkinitcpio
-	sudo xbps-install -u $yes
-	sudo xbps-install $yes "${install_packages[@]}"
-	sudo xbps-reconfigure -f linux$(uname -r | cut -d. -f1-2)
-}
+if [ "$BOOTSTRAP" = "true" ]; then
 
-services() {
+	# Check if running as root
+	if [ "$(id -u)" -ne 0 ]; then
+		echo "Error: --bootstrap requires root privileges." >&2
+		exit 1
+	fi
+
+	# Get dependencies from file
+	mapfile -t dependencies < <(grep -v '^\s*#' "$DEP_FILE" | sed '/^\s*$/d' | awk '{print $1}')
+
+	echo "Installing dependencies and updating system"
+	if confirm; then
+		# Update xbps to proceed
+		xbps-install -Suy xbps
+		# Set mkinitcpio for initramfs
+		xbps-install -y mkinitcpio
+		xbps-alternatives -s mkinitcpio
+		# Install all dependencies
+		xbps-install -y "${dependencies[@]}"
+		# Update the system and reconfigure linux for new packages
+		xbps-install -uy
+		xbps-reconfigure -f linux$(uname -r | cut -d. -f1-2)
+	else 
+		echo "Skipping..."
+	fi
+
+	# Get services from file
+	mapfile -t services < <(grep -v '^\s*#' "$DEP_FILE" | grep '#service' | awk '{print (NF >= 3 ? $3 : $1) }')
+
 	echo "Start installed services"
 	if confirm; then
-		sudo ln -sf /etc/sv/dbus /var/service
-		sudo ln -sf /etc/sv/seatd /var/service
-		sudo ln -sf /etc/sv/turnstiled /var/service
-		sudo ln -sf /etc/sv/greetd /var/service
-		sudo usermod -G _greeter,video,_seatd _greeter
-		sudo ln -sf /etc/sv/iwd /var/service
-		sudo rm /var/service/wpa_supplicant -rf
-	else
+		# Create links for all listed services
+		ln -sf $(printf "/etc/sv/%s " "${services[@]}") /var/service
+		# And add _greeter user to required groups
+		usermod -G _greeter,video,_seatd _greeter
+	else 
 		echo "Skipping..."
 	fi
-}
 
-etcfiles(){
 	echo "Copy configuration files to /etc"
 	if confirm; then
-		sudo cp -rT $DIR/system/etc /etc
+		cp -rT $DIR/system/etc /etc
 	else
 		echo "Skipping..."
 	fi
-}
-conffiles(){
-	echo "Copy configuration files to .config/"
+
+	echo "Adding ${TARGET_USER} to required groups"
 	if confirm; then
-		cp -rT $DIR/user/config ~/.config
+		usermod -aG _seatd ${TARGET_USER}
 	else
 		echo "Skipping..."
 	fi
-}
-userservices(){
-	echo "Creating per-user services"
-	if confirm; then
-		cp -rT $DIR/user/service ~/.service
-	else
-		echo "Skipping..."
-	fi
-}
+fi
 
-# System basics
-install_packages=(greetd ReGreet mesa-dri)
-# Seat, session, bus, network
-install_packages+=(seatd turnstile dbus iwd)
-install_packages+=(xdg-desktop-portal xdg-desktop-portal-wlr)
-# Important apps
-install_packages+=(git curl wget base-devel qt6-wayland xwayland-satellite)
-# Opinated apps
-install_packages+=(neovim niri foot swww quickshell qutebrowser)
-# Other useful apps
-install_packages+=(wlsunset jq qt6-shadertools)
-# Fonts
-install_packages+=(nerd-fonts dejavu-fonts-ttf font-hack-ttf xorg-fonts)
+echo "Setting ${TARGET_USER} configuration"
+if confirm; then
+	mkdir -p ${TARGET_HOME}/.config
+	ln -sf $DIR/user/config/* ${TARGET_HOME}/.config
+	chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/.config
+else
+	echo "Skipping..."
+fi
 
-sudo="true"
-yes=""
+echo "Creating per-user services"
+if confirm; then
+	mkdir -p ${TARGET_HOME}/.service
+	ln -sf $DIR/user/service/* ${TARGET_HOME}/.service
+	chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/.service
+else
+	echo "Skipping..."
+fi
 
-while [[ $# -gt 0 ]]; do
-	case "$1" in
-		--help)
-			usage ;;
-		--no-sudo)
-			sudo="false"
-			shift ;;
-		--yes)
-			yes="-y"
-			shift ;;
-	esac
-done
+echo "Rebooting to apply changes"
+if confirm; then
+	sudo reboot
+fi
+echo "Abyss configuration done"
 
-conffiles
-userservices
-
-[[ "$sudo" == "true" ]] && install
-[[ "$sudo" == "true" ]] && etcfiles
-[[ "$sudo" == "true" ]] && services
