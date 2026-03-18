@@ -33,6 +33,7 @@ qutebrowser
 wlsunset
 jq
 qt6-shadertools
+tlp #service
 
 # Fonts
 nerd-fonts
