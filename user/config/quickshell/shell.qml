@@ -1,8 +1,9 @@
 import Quickshell
-import qs.Modules
-import qs.Modules.Bar
+import qs.modules
+import qs.services
+import qs.modules.bar
 
 ShellRoot {
 	Bar {}
-	Borders {}
+	MainFrame {}
 }

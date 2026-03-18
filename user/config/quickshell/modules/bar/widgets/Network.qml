@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import qs.services
 
 Text {
 	id: network
@@ -10,8 +11,6 @@ Text {
 
 	font { family: bar.fontFamily; pixelSize: bar.fontSize * 1.5}
 
-	property color colorDanger:  "#ed8796"
-	property color colorNormal:  "#a9b1d6"
 
 	property int updateInterval: 5000
 
@@ -54,8 +53,8 @@ Text {
 	}
 
 	color: { 
-		if (wifiRssi === 0) return colorDanger
-		return colorNormal
+		if (wifiRssi === 0) return Theme.critical
+		return Theme.inactive
 	}
 	
 	text: icon

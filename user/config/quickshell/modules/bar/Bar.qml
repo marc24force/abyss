@@ -3,8 +3,8 @@ import Quickshell.Wayland
 import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
-import qs.Services
-import "Components"
+import qs.services
+import qs.modules.bar.widgets
 
 Variants {
 	model: Quickshell.screens
@@ -18,12 +18,6 @@ Variants {
 
 			visible: !Niri.isFullScreen || (Niri.activeScreen != screen.name)
 			// Theme
-			property color colBg: "#1a1b26"
-			property color colFg: "#a9b1d6"
-			property color colMuted: "#444b6a"
-			property color colCyan: "#0db9d7"
-			property color colBlue: "#7aa2f7"
-			property color colYellow: "#e0af68"
 			property string fontFamily: "JetBrainsMono Nerd Font"
 			property int fontSize: 16
 
@@ -39,7 +33,7 @@ Variants {
 			anchors.bottom: true
 			implicitWidth: 50
 
-			color: colBg
+			color: Theme.background
 
 			ColumnLayout {
 				anchors.fill: parent

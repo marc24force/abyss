@@ -1,9 +1,10 @@
 import QtQuick
 import QtQuick.Layouts
+import qs.services
 
 Text {
 	id: clock
-	color: bar.colYellow
+	color: Theme.accent
 	font { family: bar.fontFamily; pixelSize: bar.fontSize * 1.5; bold: true }
 	Layout.alignment: Qt.AlignCenter
 

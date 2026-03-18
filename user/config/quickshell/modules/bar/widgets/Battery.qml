@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import qs.services
 
 Text {
 	id: battery
@@ -9,11 +10,6 @@ Text {
 	font { family: bar.fontFamily; pixelSize: bar.fontSize}
 
 	property int updateInterval: 30000
-
-	property color colorDanger:  "#ed8796"
-	property color colorWarning: "#f5a97f"
-	property color colorGood:    "#8bd5a0"
-	property color colorNormal:  "#a9b1d6"
 
 	property int thresholdDanger: 15
 	property int thresholdWarning: 30
@@ -115,10 +111,10 @@ Text {
 	}
 
 	color: {
-		if (charging) return colorGood
-		if (capacity <= thresholdDanger) return colorDanger
-		if (capacity <= thresholdWarning) return colorWarning
-		return colorNormal
+		if (charging) return Theme.success
+		if (capacity <= thresholdDanger) return Theme.critical
+		if (capacity <= thresholdWarning) return Theme.warning
+		return Theme.foreground
 	}
 
 	textFormat: Text.RichText

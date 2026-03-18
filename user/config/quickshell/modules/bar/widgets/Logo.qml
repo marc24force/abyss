@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import qs.Services
+import qs.services
 
 Item {
     id: root
@@ -18,7 +18,7 @@ Item {
         }
 
         text: ""
-        color: bar.colMuted
+        color: Theme.inactive
         transformOrigin: Item.Center
     }
 
@@ -28,8 +28,8 @@ Item {
         loops: Animation.Infinite
 
         SequentialAnimation {
-            ColorAnimation { target: logo; property: "color"; to: bar.colMuted; duration: 900 }
-            ColorAnimation { target: logo; property: "color"; to: bar.colYellow; duration: 900 }
+            ColorAnimation { target: logo; property: "color"; to: Theme.inactive; duration: 900 }
+            ColorAnimation { target: logo; property: "color"; to: Theme.accent; duration: 900 }
 	    PauseAnimation { duration: 500 }
         }
 
@@ -43,7 +43,7 @@ Item {
 
         onRunningChanged: {
             if (!running) {
-                logo.color = bar.colMuted
+                logo.color = Theme.inactive
                 logo.rotation = 0
             }
         }
