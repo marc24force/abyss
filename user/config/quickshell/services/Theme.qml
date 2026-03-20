@@ -25,9 +25,11 @@ Item {
 		watchChanges: true
 		onFileChanged: reload()
 		onAdapterUpdated: writeAdapter()
-		
-		onLoadFailed: console.warn("Failed to load theme.json, using defaults")
-		onLoaded: console.info("Successfuly loaded theme file")
+
+		onLoadFailed: function(error) {
+			console.warn("Failed to load theme.json:", FileViewError.toString(error))
+		}
+		onLoaded: console.info("Successfuly loaded config theme file")
 
 		JsonAdapter {
 			id: json
@@ -40,6 +42,23 @@ Item {
 				}
 			}
 		}
+	}
+
+	FileView {
+		id: load_theme
+		preload: false
+		blockAllReads: true
+		onLoadFailed: function(error) {
+			console.warn("Failed to load theme.json:", FileViewError.toString(error))
+		}
+		onLoaded: {
+			console.info("Successfuly loaded new theme file")
+		}
+	}
+
+	function loadTheme(path: string) {
+		load_theme.path = expandPath(path) + "/theme.json"
+		theme_file.setText(load_theme.text())
 	}
 
 	// Properties
@@ -86,7 +105,7 @@ Item {
 		function getBackgroundImage(): string { return json.theme.background.image }
 		function setBackgroundImage(path: string) { json.theme.background.image = path }
 
-		function setTheme(path: string) { Quickshell.execDetached(["install", "-Dm644", expandPath(path + "/theme.json"), themeFile]) }
+		function set(path: string) { loadTheme(path) }
 	}
 
 	// Utils
