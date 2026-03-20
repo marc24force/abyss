@@ -6,6 +6,6 @@ Rectangle {
 	Layout.alignment: Qt.AlignCenter
 	width: parent.width - 8
 	height: 2
-	color: Theme.foreground
+	color: Theme.cs.foreground
 	radius: 2
 }

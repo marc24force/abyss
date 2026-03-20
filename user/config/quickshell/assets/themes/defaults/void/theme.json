@@ -1,11 +1,11 @@
 {
 	"theme": {
 		"background": {
-			"image": "%%/defaults/ring/wallpaper.jpg",
+			"image": "%%/defaults/void/wallpaper.jpg",
 			"color": "black"
 		},
 		"scheme": "dark",
-		"accent": "#e0af68"
+		"accent": "#478061"
 	},
 	"fonts": {
 		"normal": {

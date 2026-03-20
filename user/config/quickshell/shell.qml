@@ -4,6 +4,7 @@ import qs.services
 import qs.modules.bar
 
 ShellRoot {
+	Background {}
 	Bar {}
 	MainFrame {}
 }

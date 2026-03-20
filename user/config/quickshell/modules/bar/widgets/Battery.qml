@@ -111,10 +111,10 @@ Text {
 	}
 
 	color: {
-		if (charging) return Theme.success
-		if (capacity <= thresholdDanger) return Theme.critical
-		if (capacity <= thresholdWarning) return Theme.warning
-		return Theme.foreground
+		if (charging) return Theme.cs.success
+		if (capacity <= thresholdDanger) return Theme.cs.critical
+		if (capacity <= thresholdWarning) return Theme.cs.warning
+		return Theme.cs.foreground
 	}
 
 	textFormat: Text.RichText

@@ -1,11 +1,11 @@
 {
 	"theme": {
 		"background": {
-			"image": "%%/defaults/ring/wallpaper.jpg",
+			"image": "%%/defaults/abyss/wallpaper.jpg",
 			"color": "black"
 		},
 		"scheme": "dark",
-		"accent": "#e0af68"
+		"accent": "#ee82ee"
 	},
 	"fonts": {
 		"normal": {

@@ -18,7 +18,7 @@ Item {
         }
 
         text: ""
-        color: Theme.inactive
+        color: Theme.cs.inactive
         transformOrigin: Item.Center
     }
 
@@ -28,7 +28,7 @@ Item {
         loops: Animation.Infinite
 
         SequentialAnimation {
-            ColorAnimation { target: logo; property: "color"; to: Theme.inactive; duration: 900 }
+            ColorAnimation { target: logo; property: "color"; to: Theme.cs.inactive; duration: 900 }
             ColorAnimation { target: logo; property: "color"; to: Theme.accent; duration: 900 }
 	    PauseAnimation { duration: 500 }
         }
@@ -43,7 +43,7 @@ Item {
 
         onRunningChanged: {
             if (!running) {
-                logo.color = Theme.inactive
+                logo.color = Theme.cs.inactive
                 logo.rotation = 0
             }
         }

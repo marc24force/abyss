@@ -53,8 +53,8 @@ Text {
 	}
 
 	color: { 
-		if (wifiRssi === 0) return Theme.critical
-		return Theme.inactive
+		if (wifiRssi === 0) return Theme.cs.critical
+		return Theme.cs.inactive
 	}
 	
 	text: icon

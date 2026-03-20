@@ -9,22 +9,24 @@ Variants {
 	model: Quickshell.screens
 	delegate: Component {
 		PanelWindow {
-			id: frame
-			WlrLayershell.layer: WlrLayer.Top
-			mask: Region {}
+			id: back
+			WlrLayershell.layer: WlrLayer.Background
 
 			required property var modelData
 			screen: modelData
 
-			visible: !Niri.isFullScreen || (Niri.activeScreen != screen.name)
+			Image {
+				id: image
+				anchors.fill: parent
+				fillMode: Image.PreserveAspectCrop
 
-
-			Frame{
-				radius: 18
-				color: Theme.cs.background
-				shadow_color: Theme.cs.shadow
-				shadow_strength: 3
+				source: Theme.background.image
+				visible: Theme.background.image != null
 			}
+
+			color: Theme.background.color
+
+			exclusionMode: ExclusionMode.Ignore
 
 			anchors {
 				top: true
@@ -32,8 +34,6 @@ Variants {
 				right: true
 				bottom: true
 			}
-
-			color: "transparent"
 		}
 
 	}

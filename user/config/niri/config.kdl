@@ -1,3 +1,5 @@
+include "outputs.kdl"
+
 input {
 	keyboard {
 		xkb {
@@ -17,6 +19,14 @@ input {
 
 	trackpoint {
 	}
+}
+
+cursor {
+	xcursor-theme "Afterglow"
+	xcursor-size 48
+
+	hide-when-typing
+	hide-after-inactive-ms 5000
 }
 
 hotkey-overlay {
@@ -45,8 +55,8 @@ layout {
 
 	border {
 		width 2
-		active-gradient from="#3CADD7" to="#52EAA9" angle=45
-		inactive-gradient from="#3CADD744" to="#52EAA944" angle=45
+		active-gradient from="#e0af68" to="#f4d338" angle=45
+		inactive-gradient from="#e0af6844" to="#f4d33844" angle=45
 	}
 
 	shadow {
@@ -70,10 +80,9 @@ layout {
 prefer-no-csd
 
 environment {
-	NIRI_THEME "ring"
+	NIRI_THEME "abyss"
 }
 
-spawn-sh-at-startup "swww-daemon --no-cache & sleep 0.1 && swww img $HOME/.config/theme/$NIRI_THEME/wallpaper.* -t none"
 spawn-sh-at-startup "quickshell"
 
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"

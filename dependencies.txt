@@ -19,6 +19,7 @@ wget
 base-devel
 qt6-wayland
 xwayland-satellite
+chrony #service chronyd
 
 # Opinated apps
 ReGreet

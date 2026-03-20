@@ -11,7 +11,7 @@ Variants {
 	delegate: Component {
 		PanelWindow {
 			id: bar
-			WlrLayershell.layer: WlrLayer.Overlay
+			WlrLayershell.layer: WlrLayer.Top
 
 			required property var modelData
 			screen: modelData
@@ -22,18 +22,12 @@ Variants {
 			property int fontSize: 16
 
 
-			// System data
-			property int cpuUsage: 0
-			property int memUsage: 0
-			property var lastCpuIdle: 0
-			property var lastCpuTotal: 0
-
 			anchors.top: true
 			anchors.left: true
 			anchors.bottom: true
 			implicitWidth: 50
 
-			color: Theme.background
+			color: Theme.cs.background
 
 			ColumnLayout {
 				anchors.fill: parent

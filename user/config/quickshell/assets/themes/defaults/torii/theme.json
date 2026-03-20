@@ -1,11 +1,11 @@
 {
 	"theme": {
 		"background": {
-			"image": "%%/defaults/ring/wallpaper.jpg",
-			"color": "black"
+			"image": "%%/defaults/torii/wallpaper.jpg",
+			"color": "white"
 		},
-		"scheme": "dark",
-		"accent": "#e0af68"
+		"scheme": "light",
+		"accent": "#D32F2F"
 	},
 	"fonts": {
 		"normal": {

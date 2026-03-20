@@ -15,33 +15,33 @@ Item {
 	property real size: 4
 
 	Rectangle {
-		id: shadow_effect
-		anchors.fill: parent
-		anchors.margins: root.size
-
-		color: "transparent"
-		border.color: root.shadow_color
-		border.width: root.shadow_strength
-		radius: root.radius
-
-		layer.enabled: true
-		layer.effect: MultiEffect {
-			blurEnabled: true
-			blurMax: 32
-			blur: 0.5
-			autoPaddingEnabled: false
-		}
-
-	}
-
-
-	Rectangle {
 		id: frame
 		anchors.fill: parent
 
 		border.color: root.color
 		border.width: root.size
 		color: "transparent"
+
+		Rectangle {
+			id: shadow_effect
+			anchors.fill: parent
+			anchors.margins: root.size
+			antialiasing: true
+
+			color: "transparent"
+			border.color: root.shadow_color
+			border.width: root.shadow_strength
+			border.pixelAligned: false
+			radius: root.radius
+
+			layer.enabled: true
+			layer.effect: MultiEffect {
+				blurEnabled: true
+				blurMax: 12
+				blur: 1
+				autoPaddingEnabled: false
+			}
+		}
 
 
 		Rectangle {
@@ -53,9 +53,10 @@ Item {
 			Rectangle {
 				id: mask
 				anchors.fill: parent
+				antialiasing: true
 
 				layer.enabled: true
-				color: "black"
+				color: root.color
 				radius: root.radius
 			}
 
@@ -65,4 +66,6 @@ Item {
 			}
 		}
 	}
+
+
 }
