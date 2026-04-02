@@ -80,10 +80,9 @@ layout {
 prefer-no-csd
 
 environment {
-	NIRI_THEME "abyss"
 }
 
-spawn-sh-at-startup "quickshell"
+spawn-sh-at-startup "abyss-shell"
 
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 
