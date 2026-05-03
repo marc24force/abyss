@@ -77,10 +77,18 @@ if [ "$BOOTSTRAP" = "true" ]; then
 	# Get services from file
 	mapfile -t services < <(grep -v '^\s*#' "$DEP_FILE" | grep '#service' | awk '{print (NF >= 3 ? $3 : $1) }')
 
+	# Protect against command injection 
+	for svc in "${services[@]}"; do
+		if [[ "$svc" =~ [\$\;#\`] ]]; then
+			echo "Unsafe service entry detected: '$svc'"
+			exit 1
+		fi
+	done
+	
 	echo "Start installed services"
 	if confirm; then
 		# Create links for all listed services
-		ln -sf $(printf "/etc/sv/%s " "${services[@]}") /var/service
+		eval ln -sf $(printf "/etc/sv/%s " "${services[@]}") /var/service
 		# And add _greeter user to required groups
 		usermod -G _greeter,video,_seatd _greeter
 	else 
