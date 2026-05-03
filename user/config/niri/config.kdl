@@ -1,4 +1,4 @@
-include "outputs.kdl"
+include optional=true "outputs.kdl"
 
 input {
 	keyboard {
@@ -83,6 +83,7 @@ prefer-no-csd
 environment {
 }
 
+spawn-sh-at-startup "turnstile-update-runit-env DISPLAY WAYLAND_DISPLAY"
 spawn-sh-at-startup "abyss-shell"
 
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
@@ -103,9 +104,8 @@ binds {
 	Mod+Shift+Slash { show-hotkey-overlay; }
 
 	// Apps
-	Mod+Return hotkey-overlay-title="Open a Terminal: Foot" { spawn "foot"; }
-	Mod+Shift+Return { spawn-sh "$HOME/.config/niri/scripts/open-left.sh foot"; }
-	Mod+Slash hotkey-overlay-title="Run an Application: ???" { spawn "fuzzel"; }
+	Mod+Return hotkey-overlay-title="Open a Terminal: Foot" { spawn "footclient"; }
+	Mod+Shift+Return { spawn-sh "$HOME/.config/niri/scripts/open-left.sh footclient"; }
 	Mod+I hotkey-overlay-title="Launch Browser: qutebrowser" { spawn "qutebrowser";}
 	Mod+Shift+I  { spawn-sh "$HOME/.config/niri/scripts/open-left.sh qutebrowser";}
 	Mod+Space hotkey-overlay-title="Widget menu: wlr-which-key" { spawn "wlr-which-key"; }
@@ -213,7 +213,8 @@ binds {
 
 	Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
 
-	Mod+Shift+E { spawn-sh "abyss-shell ipc call popup power"; }
+	Mod+Slash repeat=false { spawn-sh "abyss-shell ipc call popup apps"; }
+	Mod+Shift+E repeat=false allow-inhibiting=false { spawn-sh "abyss-shell ipc call popup power"; }
 	Ctrl+Alt+Delete { quit; }
 
 	Mod+Shift+P { power-off-monitors; }
