@@ -6,7 +6,7 @@ usage() {
 Usage: $0 [OPTIONS]
 
 Options:
-  --bootstrap   Download dependencies and configure system (requires boot)
+  --bootstrap   Download dependencies and configure system (requires root)
   --yes         Skip confirmation dialogs
   -h, --help        Show this help message and exit
 EOF
