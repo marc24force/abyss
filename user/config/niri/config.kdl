@@ -83,7 +83,7 @@ prefer-no-csd
 environment {
 }
 
-spawn-sh-at-startup "turnstile-update-runit-env DISPLAY WAYLAND_DISPLAY"
+spawn-sh-at-startup "turnstile-update-runit-env NIRI_SOCKET DISPLAY WAYLAND_DISPLAY"
 spawn-sh-at-startup "abyss-shell"
 
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
@@ -213,7 +213,7 @@ binds {
 
 	Mod+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }
 
-	Mod+Slash repeat=false { spawn-sh "abyss-shell ipc call popup apps"; }
+	Mod+Slash repeat=false allow-inhibiting=false { spawn-sh "abyss-shell ipc call popup apps"; }
 	Mod+Shift+E repeat=false allow-inhibiting=false { spawn-sh "abyss-shell ipc call popup power"; }
 	Ctrl+Alt+Delete { quit; }
 
