@@ -83,8 +83,13 @@ prefer-no-csd
 environment {
 }
 
-spawn-sh-at-startup "turnstile-update-runit-env NIRI_SOCKET DISPLAY WAYLAND_DISPLAY"
 spawn-sh-at-startup "abyss-shell"
+
+// terminal server
+spawn-at-startup "foot" "--server"
+
+// night colours: use the location cache when available
+spawn-sh-at-startup "read -r lat lon < /var/cache/location || { lat=41.39; lon=2.17; }; exec wlsunset -l $lat -L $lon"
 
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 
@@ -219,3 +224,6 @@ binds {
 
 	Mod+Shift+P { power-off-monitors; }
 }
+
+
+include "noctalia.kdl"

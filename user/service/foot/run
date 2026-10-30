@@ -1,5 +1,0 @@
-#!/bin/sh
-
-[ -r ./conf ] && . ./conf
-
-exec chpst -e "$TURNSTILE_ENV_DIR" foot --server $OPTS

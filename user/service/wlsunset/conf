@@ -1,4 +1,0 @@
-
-read lat lon <<< $(curl -s ipinfo.io/loc | tr ',' ' ');
-
-OPTS+="-l $lat -L $lon"

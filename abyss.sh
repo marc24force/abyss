@@ -89,8 +89,6 @@ if [ "$BOOTSTRAP" = "true" ]; then
 	if confirm; then
 		# Create links for all listed services
 		eval ln -sf $(printf "/etc/sv/%s " "${services[@]}") /var/service
-		# And add _greeter user to required groups
-		usermod -G _greeter,video,_seatd _greeter
 	else 
 		echo "Skipping..."
 	fi
@@ -102,9 +100,24 @@ if [ "$BOOTSTRAP" = "true" ]; then
 		echo "Skipping..."
 	fi
 
-	echo "Adding ${TARGET_USER} to required groups"
+	echo "Enable services shipped by Abyss"
 	if confirm; then
-		usermod -aG _seatd ${TARGET_USER}
+		for d in "$DIR"/system/etc/sv/*; do
+			[ -d "$d" ] || continue
+			ln -sf "/etc/sv/$(basename "$d")" /var/service
+		done
+	else
+		echo "Skipping..."
+	fi
+
+	echo "Adding required groups"
+	if confirm; then
+		getent group _seatd >/dev/null 2>&1 && usermod -aG _seatd _greeter
+		getent group video  >/dev/null 2>&1 && usermod -aG video _greeter
+		# runit has no logind ACLs: device access comes from plain groups
+		for g in _seatd audio video input; do
+			getent group "$g" >/dev/null 2>&1 && usermod -aG "$g" "${TARGET_USER}"
+		done
 	else
 		echo "Skipping..."
 	fi
@@ -122,7 +135,12 @@ fi
 echo "Creating per-user services"
 if confirm; then
 	mkdir -p ${TARGET_HOME}/.service
-	ln -sf $DIR/user/service/* ${TARGET_HOME}/.service
+	# remove stale links first
+	find ${TARGET_HOME}/.service -mindepth 1 -maxdepth 1 -type l -delete
+	for d in "$DIR"/user/service/*; do
+		[ -d "$d" ] || continue
+		ln -sf "$d" "${TARGET_HOME}/.service/$(basename "$d")"
+	done
 	chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/.service
 else
 	echo "Skipping..."
