@@ -1,0 +1,4 @@
+# re-fetch period after a successful fix
+refresh="14d"
+# backoff between failed attempts
+retry="5m"
