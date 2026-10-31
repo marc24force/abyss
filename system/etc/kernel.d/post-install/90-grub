@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Kernel post-install hook for grub.
+#
+# Arguments passed to this script: $1 pkgname, $2 version.
+#
+# Regenerates the GRUB menu so new kernels become bootable.
+#
+
+# grub-mkconfig comes from the grub package; skip silently when absent
+command -v grub-mkconfig >/dev/null 2>&1 || exit 0
+
+# /boot/grub only exists on systems actually booted through GRUB
+[ -d /boot/grub ] || exit 0
+
+grub-mkconfig -o /boot/grub/grub.cfg

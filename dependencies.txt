@@ -1,4 +1,6 @@
 # System basics
+# grub: ships grub-mkconfig, needed by the kernel.d/post-install/90-grub hook
+grub
 greetd #service
 mesa-dri
 pipewire
