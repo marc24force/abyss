@@ -67,9 +67,10 @@ if [ "$BOOTSTRAP" = "true" ]; then
 		xbps-alternatives -s mkinitcpio
 		# Install all dependencies
 		xbps-install -y "${dependencies[@]}"
-		# Update the system and reconfigure linux for new packages
+		# Update the system and reconfigure the newest installed kernel series
 		xbps-install -uy
-		xbps-reconfigure -f linux$(uname -r | cut -d. -f1-2)
+		kpkg=$(xbps-query -l | awk '{print $2}' | grep -E '^linux[0-9]+(\.[0-9]+)?-[0-9]' | sort -V | tail -n1 | cut -d- -f1)
+		xbps-reconfigure -f "$kpkg"
 	else 
 		echo "Skipping..."
 	fi
