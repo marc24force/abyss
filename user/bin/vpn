@@ -1,0 +1,317 @@
+#!/bin/sh
+
+# vpn — per-user, supplier-agnostic VPN front-end.
+#
+# Profiles live in ~/.config/vpn/<name>/ (vpn.conf + optional secret) —
+# host-local, never in the rice repo. Supervision is plain runit: services
+# are generated host-side by /etc/abyss/vpn-ctl, the ONLY privileged
+# command used here (sudoers.d/30-vpn, %network, NOPASSWD). Secrets are
+# typed here and piped to vpn-ctl on stdin; from there they travel
+# /run/vpn/<name>.secret -> a generated backend config, 0600 root tmpfs.
+# Never argv, never visible in ps.
+#
+# State interface: /run/vpn/status (one "name state=... ..." line per
+# profile, 0644).
+
+cfg=${XDG_CONFIG_HOME:-$HOME/.config}/vpn
+run=/run/vpn
+LC_ALL=C
+export LC_ALL
+
+trap 'stty echo 2>/dev/null' INT TERM EXIT
+
+usage() {
+	cat >&2 <<EOF
+usage: vpn status
+       vpn ls                  profiles + auth mode + boot behaviour
+       vpn up <profile>        connect (asks for the one-time code on otp;
+                               prints and opens the login link on saml)
+       vpn down <profile>      disconnect
+       vpn on <profile>        auto-start at boot (one profile stays active)
+       vpn off <profile>       no auto-start at boot
+       vpn add <profile>       create a profile (questionnaire)
+       vpn forget <profile>    remove profile + generated service
+       vpn log <profile>       show the connection log
+EOF
+	exit 2
+}
+
+fatal() {
+	printf 'vpn: %s\n' "$1" >&2
+	exit 1
+}
+
+# read a secret: hidden when tty, plain when piped
+read_secret() {
+	if [ -t 0 ]; then
+		printf '%s: ' "$2" >&2
+		stty -echo
+		IFS= read -r "$1"
+		stty echo
+		printf '\n' >&2
+	else
+		IFS= read -r "$1"
+	fi
+}
+
+valid_name() {
+	case "$1" in
+		'' | status | -* | .* | *[!a-zA-Z0-9._-]*) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
+need_profile() {
+	valid_name "$1" || fatal "bad profile name: $1"
+	[ -r "$cfg/$1/vpn.conf" ] || fatal "no profile $1 (vpn add $1?)"
+}
+
+# profile $1, key $2 -> value (first match, empty when absent)
+conf_val() {
+	sed -n "s/^$2=//p" "$cfg/$1/vpn.conf" 2>/dev/null | head -n 1
+}
+
+# current state of profile $1 ("" when unsupervised)
+prof_state() {
+	sed -n 's/^state=//p' "$run/$1" 2>/dev/null | head -n 1
+}
+
+# the only privileged call in this script (NOPASSWD via sudoers.d/30-vpn)
+ctl() {
+	sudo -n -l 2>/dev/null | grep -q '/etc/abyss/vpn-ctl' ||
+		fatal "passwordless vpn-ctl unavailable"
+	sudo -n /etc/abyss/vpn-ctl "$@"
+}
+
+# wait for profile $1 to settle; timeout $2. Returns:
+#   0 connected  1 failed  2 needs-secret  3 down  4 still pending
+wait_up() {
+	phase=0
+	i=0
+	while [ "$i" -lt "$2" ]; do
+		st=$(prof_state "$1")
+		if [ "$phase" = 0 ]; then
+			case "$st" in
+				connecting) phase=1 ;;
+				needs-secret) return 2 ;;
+			esac
+		else
+			case "$st" in
+				connected) return 0 ;;
+				failed) return 1 ;;
+				needs-secret) return 2 ;;
+				down) return 3 ;;
+			esac
+		fi
+		sleep 1
+		i=$((i + 1))
+	done
+	return 4
+}
+
+report() {
+	# $1 = profile, $2 = wait_up's return code
+	case "$2" in
+		0)
+			ip=$(sed -n 's/^ip=//p' "$run/$1" 2>/dev/null)
+			if [ -n "$ip" ]; then
+				printf 'connected (%s)\n' "$ip"
+			else
+				printf 'connected\n'
+			fi
+			;;
+		1)
+			retry=$(sed -n 's/^retry_in=//p' "$run/$1" 2>/dev/null)
+			[ -n "$retry" ] && printf 'failed (retrying in %s)\n' "$retry" ||
+				printf 'failed\n'
+			printf 'vpn log %s shows why\n' "$1" >&2
+			;;
+		2) printf 'parked: missing credentials (vpn up %s again)\n' "$1" ;;
+		3) printf 'went down while connecting\n' ;;
+		4) printf 'still connecting — vpn status / vpn log %s\n' "$1" ;;
+	esac
+}
+
+cmd_status() {
+	[ -s "$run/status" ] || { printf 'nothing under supervision\n'; return 0; }
+	while IFS= read -r n rest; do
+		st= extra=
+		for kv in $rest; do
+			case "$kv" in
+				state=*) st=${kv#state=} ;;
+				ip=* | retry_in=* | reason=*) extra="$extra $kv" ;;
+			esac
+		done
+		printf '%-12s %-12s %s\n' "$n" "${st:--}" "$extra"
+	done < "$run/status"
+}
+
+cmd_ls() {
+	found=0
+	for d in "$cfg"/*/; do
+		[ -d "$d" ] || continue
+		n=${d%/}
+		n=${n##*/}
+		valid_name "$n" || continue
+		auth=$(conf_val "$n" auth)
+		boot=-
+		if [ -L "/var/service/vpn-$n" ]; then
+			if [ -e "/var/service/vpn-$n/down" ]; then boot=manual; else boot=auto; fi
+		fi
+		st=$(prof_state "$n")
+		printf '%-12s %-8s %-12s %s\n' "$n" "${auth:-password}" "$boot" "${st:--}"
+		found=1
+	done
+	[ "$found" = 1 ] || printf 'no profiles (vpn add <name>)\n'
+}
+
+cmd_up() {
+	need_profile "$2"
+	n=$2
+	case "$(prof_state "$n")" in
+		connected) printf 'already connected\n'; return 0 ;;
+	esac
+	auth=$(conf_val "$n" auth)
+	auth=${auth:-password}
+
+	if [ "$auth" = otp ]; then
+		read_secret pass 'password'
+		[ -n "$pass" ] || fatal "empty password"
+		printf 'one-time code: '
+		IFS= read -r code
+		printf '%s\n%s\n' "$pass" "$code" | ctl up "$n" || exit 1
+	else
+		ctl up "$n" || exit 1
+	fi
+
+	if [ "$auth" = saml ]; then
+		# openfortivpn prints "Using SAML authentication URL <url>" to the
+		# log once its local listener is up; surface it and open it
+		url=
+		i=0
+		while [ "$i" -lt 30 ]; do
+			url=$(sed -n 's/.*SAML authentication URL \([^[:space:]]*\).*/\1/p' \
+				"$run/$n.log" 2>/dev/null | tail -n 1)
+			[ -n "$url" ] && break
+			sleep 1
+			i=$((i + 1))
+		done
+		if [ -n "$url" ]; then
+			printf 'sign in here:\n  %s\n' "$url"
+			if command -v xdg-open >/dev/null 2>&1 &&
+				[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+				xdg-open "$url" >/dev/null 2>&1 &
+				printf '(opened in your browser)\n'
+			fi
+		else
+			printf 'waiting for the login link — vpn log %s\n' "$n" >&2
+		fi
+	fi
+
+	timeout=50
+	[ "$auth" = saml ] && timeout=310
+	wait_up "$n" "$timeout"
+	report "$n" $?
+}
+
+cmd_down() {
+	need_profile "$2"
+	ctl down "$2" || exit 1
+	printf 'down\n'
+}
+
+cmd_on() {
+	need_profile "$2"
+	auth=$(conf_val "$2" auth)
+	auth=${auth:-password}
+	if [ "$auth" = saml ]; then
+		printf 'warning: saml needs someone to click the link in a browser — at boot nobody will\n' >&2
+	fi
+	ctl on "$2" || exit 1
+	printf '%s auto-starts at boot (other profiles demoted)\n' "$2"
+}
+
+cmd_off() {
+	need_profile "$2"
+	ctl off "$2" || exit 1
+	printf '%s will not auto-start at boot\n' "$2"
+}
+
+cmd_add() {
+	valid_name "$2" || fatal "bad profile name: $2"
+	dir=$cfg/$2
+	[ -e "$dir" ] && fatal "profile $2 exists (vpn forget $2 first?)"
+
+	printf 'gateway host: '
+	IFS= read -r host
+	[ -n "$host" ] || fatal "host required"
+	printf 'port (blank: gateway default): '
+	IFS= read -r port
+
+	printf 'auth — password (stored, unattended), otp (code at every connect), saml (browser link) [password]: '
+	IFS= read -r auth
+	auth=${auth:-password}
+	case "$auth" in
+		password | otp | saml) ;;
+		*) fatal "auth must be password, otp or saml" ;;
+	esac
+
+	user= realm= cert=
+	if [ "$auth" != saml ]; then
+		printf 'username: '
+		IFS= read -r user
+		[ -n "$user" ] || fatal "username required for $auth"
+		printf 'realm (blank: none): '
+		IFS= read -r realm
+	fi
+	printf 'trusted-cert sha256 digest (blank: gateway cert must verify): '
+	IFS= read -r cert
+
+	umask 077
+	mkdir -p "$dir" || fatal "cannot create $dir"
+	{
+		printf 'type=openfortivpn\n'
+		printf 'host=%s\n' "$host"
+		[ -n "$port" ] && printf 'port=%s\n' "$port"
+		[ -n "$user" ] && printf 'username=%s\n' "$user"
+		[ -n "$realm" ] && printf 'realm=%s\n' "$realm"
+		[ -n "$cert" ] && printf 'trusted_cert=%s\n' "$cert"
+		printf 'auth=%s\n' "$auth"
+	} > "$dir/vpn.conf" || fatal "cannot write $dir/vpn.conf"
+
+	if [ "$auth" = password ]; then
+		read_secret pass 'password'
+		[ -n "$pass" ] || fatal "empty password (vpn forget $2, then add again)"
+		printf '%s\n' "$pass" > "$dir/secret"
+	fi
+
+	printf 'profile written: %s\n' "$dir/vpn.conf"
+	printf 'connect with: vpn up %s\n' "$2"
+}
+
+cmd_forget() {
+	need_profile "$2"
+	ctl forget "$2" || exit 1
+	rm -rf "$cfg/$2"
+	printf 'forgot %s\n' "$2"
+}
+
+cmd_log() {
+	valid_name "$2" || fatal "bad profile name: $2"
+	[ -r "$run/$2.log" ] || fatal "no log for $2 (never ran?)"
+	exec cat "$run/$2.log"
+}
+
+[ $# -ge 1 ] || usage
+case $1 in
+	status) cmd_status ;;
+	ls) cmd_ls ;;
+	up) [ $# -eq 2 ] || usage; cmd_up "$@" ;;
+	down) [ $# -eq 2 ] || usage; cmd_down "$@" ;;
+	on) [ $# -eq 2 ] || usage; cmd_on "$@" ;;
+	off) [ $# -eq 2 ] || usage; cmd_off "$@" ;;
+	add) [ $# -eq 2 ] || usage; cmd_add "$@" ;;
+	forget) [ $# -eq 2 ] || usage; cmd_forget "$@" ;;
+	log) [ $# -eq 2 ] || usage; cmd_log "$@" ;;
+	*) usage ;;
+esac
