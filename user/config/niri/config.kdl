@@ -113,7 +113,6 @@ binds {
 	Mod+Shift+Return { spawn-sh "$HOME/.config/niri/scripts/open-left.sh footclient"; }
 	Mod+I hotkey-overlay-title="Launch Browser: qutebrowser" { spawn "qutebrowser";}
 	Mod+Shift+I  { spawn-sh "$HOME/.config/niri/scripts/open-left.sh qutebrowser";}
-	Mod+Space hotkey-overlay-title="Widget menu: wlr-which-key" { spawn "wlr-which-key"; }
 
 	// Quit
 	Mod+Q repeat=false { close-window; }
@@ -124,9 +123,7 @@ binds {
 	XF86AudioMute        allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"; }
 	XF86AudioMicMute     allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
 
-	// XF86 Brightness
-	XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+10%"; }
-	XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "10%-"; }
+	// XF86 Brightness keys are ACPI events handled by acpid
 
 	// Navigation - Overview
 	Mod+O repeat=false { toggle-overview; }

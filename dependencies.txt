@@ -2,6 +2,8 @@
 # grub: ships grub-mkconfig, needed by the kernel.d/post-install/90-grub hook
 grub
 greetd #service
+# acpid: firmware keys (backlight, power, lid) via the stock /etc/acpi handler
+acpid #service
 mesa-dri
 pipewire
 wireplumber
