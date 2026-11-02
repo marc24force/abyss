@@ -235,8 +235,11 @@ cmd_connect() {
 		printf 'already connected to %s\n' "$ssid"
 		return 0
 	fi
-	if ! iwc known-networks list 2>/dev/null | parse_known |
+	if iwc known-networks list 2>/dev/null | parse_known |
 		cut -f1 | grep -qxF "$ssid"; then
+		known=1
+	else
+		known=0
 		printf 'net: no saved profile for "%s" — iwctl will ask for the passphrase\n' "$ssid" >&2
 	fi
 	# refresh the scan and wait for the SSID to become visible
@@ -249,14 +252,29 @@ cmd_connect() {
 		sleep 0.5
 	done
 
-	# iwctl prompts for the passphrase itself (stdin) and iwd saves the
-	# profile on success
-	try=0
-	until station connect "$ssid"; do
-		try=$((try + 1))
-		[ "$try" -ge 3 ] && fatal "iwctl connect failed"
-		sleep 2
-	done
+	if [ "$known" = 0 ]; then
+		# unknown network: iwctl prompts for the passphrase itself
+		# (stdin) and iwd saves the profile on success
+		station connect "$ssid" || fatal "connect failed"
+	else
+		# known network: no prompt, so capture iwctl's output — its
+		# "Operation failed" line would read like a final verdict while
+		# a retry is still pending
+		try=0
+		while :; do
+			out=$(station connect "$ssid" 2>&1); rc=$?
+			[ "$rc" -eq 0 ] && break
+			try=$((try + 1))
+			[ "$try" -ge 3 ] && break
+			printf 'connect failed, retrying (%d/2)\n' "$try"
+			sleep 2
+		done
+		if [ "$rc" -ne 0 ]; then
+			[ -n "$out" ] && printf '%s\n' "$out" >&2
+			fatal "connect failed"
+		fi
+	fi
+	printf 'connected to %s\n' "$ssid"
 }
 
 cmd_disconnect() {
