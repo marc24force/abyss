@@ -52,6 +52,13 @@ case "$name" in
 		exit 1 ;;
 esac
 
+# $run is tmpfs: gone at every boot, recreate it
+mkdir -p "$run" || {
+	echo "vpn-run: cannot create $run" >&2
+	sleep 30
+	exit 1
+}
+
 state() { /etc/abyss/vpn-state "$name" "$@"; }
 
 # ---- vpn.conf (key=value, '#' comments) -> variables ----

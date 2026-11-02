@@ -17,7 +17,10 @@ state_dir=/var/lib/iwd
 LC_ALL=C
 export LC_ALL
 
-trap 'stty echo 2>/dev/null' INT TERM EXIT
+# INT/TERM restore terminal echo and exit; EXIT only restores echo
+trap 'stty echo 2>/dev/null; exit 130' INT
+trap 'stty echo 2>/dev/null; exit 143' TERM
+trap 'stty echo 2>/dev/null' EXIT
 
 usage() {
 	cat >&2 <<EOF

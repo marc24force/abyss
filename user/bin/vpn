@@ -18,7 +18,10 @@ run=/run/vpn
 LC_ALL=C
 export LC_ALL
 
-trap 'stty echo 2>/dev/null' INT TERM EXIT
+# INT/TERM restore terminal echo and exit; EXIT only restores echo
+trap 'stty echo 2>/dev/null; exit 130' INT
+trap 'stty echo 2>/dev/null; exit 143' TERM
+trap 'stty echo 2>/dev/null' EXIT
 
 usage() {
 	cat >&2 <<EOF
@@ -85,16 +88,26 @@ ctl() {
 
 # wait for profile $1 to settle; timeout $2. Returns:
 #   0 connected  1 failed  2 needs-secret  3 down  4 still pending
+#   5 service never reported any state
 wait_up() {
 	phase=0
 	i=0
+	missing=0
 	while [ "$i" -lt "$2" ]; do
 		st=$(prof_state "$1")
 		if [ "$phase" = 0 ]; then
 			case "$st" in
 				connecting) phase=1 ;;
 				needs-secret) return 2 ;;
+				connected) return 0 ;;
 			esac
+			# no state file at all: bail out early
+			if [ -z "$st" ]; then
+				missing=$((missing + 1))
+				[ "$missing" -ge 10 ] && return 5
+			else
+				missing=0
+			fi
 		else
 			case "$st" in
 				connected) return 0 ;;
@@ -129,6 +142,10 @@ report() {
 		2) printf 'parked: missing credentials (vpn up %s again)\n' "$1" ;;
 		3) printf 'went down while connecting\n' ;;
 		4) printf 'still connecting — vpn status / vpn log %s\n' "$1" ;;
+		5)
+			printf 'service is not reporting state\n'
+			printf 'vpn log %s shows why\n' "$1" >&2
+			;;
 	esac
 }
 
@@ -185,8 +202,7 @@ cmd_up() {
 	fi
 
 	if [ "$auth" = saml ]; then
-		# openfortivpn prints "Using SAML authentication URL <url>" to the
-		# log once its local listener is up; surface it and open it
+		# surface the SAML login URL from the log and open it
 		url=
 		i=0
 		while [ "$i" -lt 30 ]; do
@@ -201,7 +217,6 @@ cmd_up() {
 			if command -v xdg-open >/dev/null 2>&1 &&
 				[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
 				xdg-open "$url" >/dev/null 2>&1 &
-				printf '(opened in your browser)\n'
 			fi
 		else
 			printf 'waiting for the login link — vpn log %s\n' "$n" >&2
@@ -225,7 +240,7 @@ cmd_on() {
 	auth=$(conf_val "$2" auth)
 	auth=${auth:-password}
 	if [ "$auth" = saml ]; then
-		printf 'warning: saml needs someone to click the link in a browser — at boot nobody will\n' >&2
+		printf 'warning: saml cannot auto-start at boot\n' >&2
 	fi
 	ctl on "$2" || exit 1
 	printf '%s auto-starts at boot (other profiles demoted)\n' "$2"
