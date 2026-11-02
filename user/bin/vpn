@@ -79,8 +79,10 @@ prof_state() {
 	sed -n 's/^state=//p' "$run/$1" 2>/dev/null | head -n 1
 }
 
-# the only privileged call in this script (NOPASSWD via sudoers.d/30-vpn)
+# the only privileged call in this script (NOPASSWD via sudoers.d/30-vpn,
+# granted to the network group)
 ctl() {
+	id -nG | grep -qw network || fatal "not in the network group"
 	sudo -n -l 2>/dev/null | grep -q '/etc/abyss/vpn-ctl' ||
 		fatal "passwordless vpn-ctl unavailable"
 	sudo -n /etc/abyss/vpn-ctl "$@"

@@ -48,6 +48,12 @@ ansi() { sed 's/\x1b\[[0-9;]*[a-zA-Z]//g'; }
 # the only privileged call in this script (NOPASSWD via sudoers.d/30-net)
 iwc() { sudo -n iwctl "$@"; }
 
+# every privileged subcommand funnels through iwc; provision alone uses
+# passworded sudo
+need_network() {
+	id -nG | grep -qw network || fatal "not in the network group"
+}
+
 # ssid -> profile file name: iwd percent-escapes bytes outside [A-Za-z0-9._-]
 encode_ssid() {
 	printf '%s' "$1" | awk '
@@ -331,6 +337,9 @@ cmd_provision() {
 }
 
 [ $# -ge 1 ] || usage
+case $1 in
+	status | scan | connect | disconnect | ls | forget) need_network ;;
+esac
 case $1 in
 	status | scan | connect | disconnect) need_iface ;;
 esac
