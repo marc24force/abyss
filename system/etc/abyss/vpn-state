@@ -1,0 +1,72 @@
+#!/bin/sh
+
+# vpn-state — record VPN profile state under /run/vpn.
+#
+# usage: vpn-state <profile> <state> [key=value ...]
+#        vpn-state --regen          just rebuild /run/vpn/status
+#
+# Each profile gets /run/vpn/<profile> ("state=...", "since=<epoch>" plus
+# extras like "ip=..."), written atomically. /run/vpn/status aggregates
+# one "name key=value key=value" line per profile — that file is the
+# interface for "vpn status". Everything is 0644; secrets never
+# pass through here.
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C
+export PATH LC_ALL
+
+run=/run/vpn
+
+usage() {
+	echo "usage: vpn-state <profile> <state> [key=value ...]" >&2
+	echo "       vpn-state --regen" >&2
+	exit 2
+}
+
+regen() {
+	tmp=$run/status.new
+	: > "$tmp"
+	for f in "$run"/*; do
+		[ -f "$f" ] || continue
+		n=${f##*/}
+		case "$n" in
+			status | status.new | *.new | *.secret | *.tries | *.log | *.conf)
+				continue ;;
+		esac
+		line=$n
+		while IFS= read -r kv; do
+			[ -n "$kv" ] && line="$line $kv"
+		done < "$f"
+		printf '%s\n' "$line" >> "$tmp"
+	done
+	chmod 644 "$tmp"
+	mv -f "$tmp" "$run/status"
+}
+
+mkdir -p "$run" || exit 1
+chmod 755 "$run"
+
+[ $# -eq 0 ] && usage
+[ "$1" = "--regen" ] && { regen; exit 0; }
+
+[ $# -ge 2 ] || usage
+name=$1
+state=$2
+shift 2
+
+case "$name" in
+	'' | status | -* | .* | *[!a-zA-Z0-9._-]*)
+		echo "vpn-state: bad profile name: $name" >&2
+		exit 1 ;;
+esac
+
+tmp=$run/$name.new
+{
+	printf 'state=%s\nsince=%s\n' "$state" "$(date +%s)"
+	for kv in "$@"; do
+		printf '%s\n' "$kv"
+	done
+} > "$tmp" || exit 1
+chmod 644 "$tmp"
+mv -f "$tmp" "$run/$name"
+regen

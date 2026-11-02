@@ -1,0 +1,3 @@
+Cmnd_Alias VPN = /etc/abyss/vpn-ctl
+
+%network ALL=(ALL) NOPASSWD: VPN

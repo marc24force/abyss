@@ -1,0 +1,216 @@
+#!/bin/sh
+
+# vpn-run — supervised VPN tunnel runner (one instance per profile).
+#
+# /etc/abyss/vpn-ctl generates /etc/sv/vpn-<profile>/run as
+# "exec /etc/abyss/vpn-run <profile>/vpn.conf" and links it into
+# /var/service; runsv keeps it alive. The profile's "type=" picks the
+# backend branch — openfortivpn today; a new supplier is one more
+# branch. Boot auto-start is plain runit: link present without a down
+# file.
+#
+# Auth modes (profile's "auth="):
+#   password  persistent <profile>/secret (0600), fully unattended — the
+#             only mode that makes sense with auto-start at boot
+#   otp       password + one-time code; vpn-ctl stages both in
+#             /run/vpn/<profile>.secret (consumed here), a restart with
+#             the code spent parks in "needs-secret"
+#   saml      browser flow (--saml-login): openfortivpn prints the login
+#             URL to the profile log; "vpn up" tails it and opens the
+#             link — no secret is stored at all
+#
+# Secrets: the password goes into a generated backend config under /run
+# (tmpfs, 0600, root) — never argv, never visible in ps.
+#
+# States, reported via vpn-state to /run/vpn/status:
+#   connecting -> connected -> down    clean stop ("vpn down")
+#                        -> failed     dropped; runsv restarts us and the
+#                                      sleep below throttles the retry
+#   needs-secret                        parked, waiting for "vpn up"
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C
+export PATH LC_ALL
+
+conf=$1
+[ -n "$conf" ] && [ -r "$conf" ] || {
+	echo "vpn-run: cannot read profile: $conf" >&2
+	sleep 30
+	exit 1
+}
+
+profdir=${conf%/*}
+name=${profdir##*/}
+run=/run/vpn
+log=$run/$name.log
+bconf=$run/$name.conf
+
+case "$name" in
+	'' | status | -* | .* | *[!a-zA-Z0-9._-]*)
+		echo "vpn-run: bad profile name: $name" >&2
+		sleep 30
+		exit 1 ;;
+esac
+
+state() { /etc/abyss/vpn-state "$name" "$@"; }
+
+# ---- vpn.conf (key=value, '#' comments) -> variables ----
+type= host= port= username= trusted_cert= realm= auth=password extra_args=
+
+while IFS= read -r line; do
+	case "$line" in '' | \#*) continue ;; esac
+	case "$line" in *=*) ;; *) continue ;; esac
+	key=${line%%=*}
+	val=${line#*=}
+	case "$key" in
+		type) type=$val ;;
+		host) host=$val ;;
+		port) port=$val ;;
+		username) username=$val ;;
+		trusted_cert) trusted_cert=$val ;;
+		realm) realm=$val ;;
+		auth) auth=$val ;;
+		extra_args) extra_args=$val ;;
+	esac
+done < "$conf"
+
+[ -n "$type" ] && [ -n "$host" ] || {
+	state failed reason=bad-profile
+	echo "vpn-run: $name: profile needs type= and host=" >&2
+	sleep 30
+	exit 1
+}
+case "$auth" in
+	password | otp | saml) ;;
+	*)
+		state failed reason=bad-profile
+		echo "vpn-run: $name: auth must be password, otp or saml" >&2
+		sleep 30
+		exit 1
+		;;
+esac
+
+want_down=0
+child=
+
+cleanup() {
+	[ -n "$child" ] && kill -TERM "$child" 2>/dev/null
+	rm -f "$bconf"
+}
+trap 'want_down=1; cleanup' TERM INT
+trap 'rm -f "$bconf"' EXIT
+
+# ---- acquire credentials ----
+password= otpcode=
+if [ -f "$run/$name.secret" ]; then
+	{
+		IFS= read -r password
+		IFS= read -r otpcode
+	} < "$run/$name.secret"
+	rm -f "$run/$name.secret"
+elif [ "$auth" = saml ]; then
+	: # browser flow — the login URL appears in the log, "vpn up" opens it
+elif [ "$auth" = otp ]; then
+	state needs-secret reason=otp-required
+	echo "vpn-run: $name: parked, waiting for a one-time code (vpn up $name)" >&2
+	exec sleep 3600
+elif [ -r "$profdir/secret" ]; then
+	IFS= read -r password < "$profdir/secret"
+else
+	state needs-secret reason=no-secret
+	echo "vpn-run: $name: no secret file (vpn add again?)" >&2
+	exec sleep 3600
+fi
+
+# ---- launch the backend ----
+: > "$log"
+
+case "$type" in
+openfortivpn)
+	# everything — password included, and the one-time code when staged —
+	# goes into a generated config: 0600 root-only on tmpfs
+	umask 077
+	{
+		printf 'host = %s\n' "$host"
+		[ -n "$port" ] && printf 'port = %s\n' "$port"
+		[ -n "$username" ] && printf 'username = %s\n' "$username"
+		[ -n "$trusted_cert" ] && printf 'trusted-cert = %s\n' "$trusted_cert"
+		[ -n "$realm" ] && printf 'realm = %s\n' "$realm"
+		[ -n "$password" ] && printf 'password = %s\n' "$password"
+		[ -n "$otpcode" ] && printf 'otp = %s\n' "$otpcode"
+		printf 'set-dns = 1\n'
+		printf 'use-resolvconf = 1\n'
+		printf 'pppd-use-peerdns = 0\n'
+	} > "$bconf"
+	chmod 600 "$bconf"
+	password= otpcode=
+
+	set -- -c "$bconf"
+	[ "$auth" = saml ] && set -- "$@" --saml-login
+	# shellcheck disable=SC2086 # deliberate passthrough of extra flags
+	[ -n "$extra_args" ] && set -- "$@" $extra_args
+	openfortivpn "$@" >> "$log" 2>&1 &
+	child=$!
+	;;
+*)
+	state failed reason=unsupported-type
+	echo "vpn-run: $name: unsupported type: $type" >&2
+	sleep 30
+	exit 1
+	;;
+esac
+
+state connecting
+
+# ---- wait for the tunnel: 60 s (password/otp), 300 s (browser flow) ----
+max_wait=60
+[ "$auth" = saml ] && max_wait=300
+
+up=0
+n=0
+while [ "$n" -lt "$max_wait" ]; do
+	[ "$want_down" = 1 ] && break
+	kill -0 "$child" 2>/dev/null || break
+	if grep -q 'Tunnel is up' "$log" 2>/dev/null; then
+		up=1
+		break
+	fi
+	sleep 1
+	n=$((n + 1))
+done
+
+if [ "$up" = 1 ]; then
+	addr=
+	i=0
+	while [ "$i" -lt 5 ]; do
+		addr=$(ip -4 -o addr show dev ppp0 2>/dev/null |
+			awk '{split($4, a, "/"); print a[1]; exit}')
+		[ -n "$addr" ] && break
+		sleep 1
+		i=$((i + 1))
+	done
+	rm -f "$run/$name.tries"
+	state connected ${addr:+ip=$addr}
+	wait "$child"
+else
+	kill -TERM "$child" 2>/dev/null
+	wait "$child" 2>/dev/null
+fi
+
+# ---- tunnel dropped or never came up ----
+if [ "$want_down" = 1 ]; then
+	state down
+	exit 0
+fi
+
+tries=$(cat "$run/$name.tries" 2>/dev/null)
+tries=${tries:-0}
+tries=$((tries + 1))
+printf '%s\n' "$tries" > "$run/$name.tries"
+delay=$((tries * 15))
+[ "$delay" -gt 300 ] && delay=300
+state failed "retry_in=${delay}s"
+
+# throttle before handing control back to runsv (it restarts us at once)
+rm -f "$bconf"
+exec sleep "$delay"

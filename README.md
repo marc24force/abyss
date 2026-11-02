@@ -67,13 +67,14 @@ variables into its exec. The supported variables and some possible variations:
 ## Network
 
 `iwd` (Wi-Fi scan/auth/roam) + `dhcpcd` (addressing) + `openresolv` (owner of
-`/etc/resolv.conf`) + `openfortivpn` (work VPN, run manually). iwd runs with
-`EnableNetworkConfiguration=false`, so addressing stays with dhcpcd.
+`/etc/resolv.conf`) + `openfortivpn` (VPN tunnels — see [VPN](#vpn) below).
+iwd runs with `EnableNetworkConfiguration=false`, so addressing stays with
+dhcpcd.
 
 Both dhcpcd and openfortivpn speak resolvconf natively: a DHCP lease refresh
-while the VPN is up *merges* the two DNS sets instead of last-writer-wins.
-The host-local openfortivpn config should use
-`--set-dns=1 --use-resolvconf=1 --pppd-use-peerdns=0`.
+while the VPN is up *merges* the two DNS sets instead of last-writer-wins
+(the per-profile openfortivpn configs are generated host-side with
+`set-dns = 1`, `use-resolvconf = 1` and `pppd-use-peerdns = 0`).
 
 Wi-Fi is driven by `user/bin/net` → `~/.local/bin/net` — a plain CLI that only
 front-ends `iwctl`:
@@ -95,12 +96,49 @@ profiles are managed through `iwctl known-networks` (never by touching
 `/var/lib/iwd`, never in this repo. `iwctl` colorizes its tables even when
 piped — `net` strips the ANSI escapes before parsing.
 
+## VPN
+
+`openfortivpn` tunnels, one at a time, per user: profiles live in
+`~/.config/vpn/<name>/` (`vpn.conf` + `secret`, 0600 — host-local, never in
+this repo). `user/bin/vpn` → `~/.local/bin/vpn` front-ends them:
+
+| command               | effect                                                                    |
+|-----------------------|---------------------------------------------------------------------------|
+| `vpn status`          | one line per supervised profile (`name state=… ip=…`, machine-parseable)   |
+| `vpn ls`              | profiles + auth mode + boot behaviour + current state                     |
+| `vpn up <profile>`    | connect; asks for the one-time code on otp, prints and opens the login link on saml |
+| `vpn down <profile>`  | disconnect                                                                |
+| `vpn on <profile>`    | auto-start at boot (a single profile stays active; others are demoted)     |
+| `vpn off <profile>`   | no auto-start at boot                                                     |
+| `vpn add <profile>`   | questionnaire: gateway, port, auth mode, realm, trusted-cert              |
+| `vpn forget <profile>`| remove the profile and its generated service                              |
+| `vpn log <profile>`   | show the connection log                                                   |
+
+Auth modes (`auth=` in the profile): `password` (stored in `secret`, fully
+unattended — the only mode that makes sense with `vpn on`), `otp` (password +
+one-time code typed at every `vpn up`), `saml` (browser login via
+`--saml-login`: the CLI prints and opens the link).
+
+Supervision is plain runit, system-level so it survives logout:
+`/etc/abyss/vpn-ctl` — the only privileged command, granted to the `network`
+group via `system/etc/sudoers.d/30-vpn` — generates an `/etc/sv/vpn-<name>`
+stub per profile and links it into `/var/service`. Auto-start at boot is just
+the link without a `down` file; nothing else. Secrets travel
+stdin → `/run/vpn/<name>.secret` → a generated openfortivpn config
+(`/run/vpn/<name>.conf`, 0600 root, tmpfs) — never argv, never visible in
+`ps`. Failed connects back off linearly (15 s per try, capped at 300 s);
+`vpn up` cuts the wait short.
+
+State lands in `/run/vpn/status` — one `name state=… since=… ip=…` line per
+profile, 0644, atomically rewritten.
+
 ## Groups
 
 ```
-TARGET_USER: _seatd audio video input network   # seatd + nodes + Wi-Fi control (sudoers.d/30-net)
+TARGET_USER: _seatd audio video input network   # seatd + nodes + Wi-Fi/VPN control (sudoers.d/30-net, 30-vpn)
 _greeter:    video _seatd                       # the greeter draws its session through seatd
 ```
 
 Both are set by `abyss.sh --bootstrap`. The `network` group otherwise does
-nothing: it only unlocks `iwctl` via `system/etc/sudoers.d/30-net`.
+nothing: it only unlocks `iwctl` (sudoers.d/30-net) and `vpn-ctl`
+(sudoers.d/30-vpn).

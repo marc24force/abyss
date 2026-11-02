@@ -3,33 +3,33 @@ set -euo pipefail
 
 usage() {
 	cat <<EOF >&2
-Ús: $0 [--home] [--save FITXER1,FITXER2,...]
+Usage: $0 [--home] [--save FILE1,FILE2,...]
 
-Opcions:
-  --home            Esborra el contingut del directori personal de l'usuari
-  --save FITXERS    Llista separada per comes de fitxers/directoris a preservar (només funciona amb --home)
-  -h, --help        Mostra aquest missatge d'ajuda
+Options:
+  --home            Wipe the contents of the user's home directory
+  --save FILES      Comma-separated list of files/directories to preserve (only with --home)
+  -h, --help        Show this help message
 
-Exemples:
+Examples:
   $0
   $0 --home
   $0 --home --save ".bashrc,Documents"
 
-Cal executar-lo com a root. Només quedaran els paquets de base-system.
+Must run as root. Only base-system packages will remain.
 EOF
 	exit "${1:-1}"
 }
 
-# Comprovació de permisos d'administrador
+# root check
 if [ "$(id -u)" -ne 0 ]; then
-	echo "Aquest script requereix permisos de root."
+	echo "This script requires root."
 	exit 1
 fi
 
 REMOVE_HOME=0
 SAVE_LIST=()
 
-# Processament d'arguments
+# argument parsing
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 		--home)
@@ -44,28 +44,27 @@ while [ "$#" -gt 0 ]; do
 		--help|-h)
 			usage 0
 			;;
-
 		*)
-			echo "Paràmetre desconegut: $1"
+			echo "Unknown parameter: $1"
 			usage 1
 			;;
 	esac
 done
 
-# Determinem l'usuari i home reals
+# resolve the real user and home
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME=$(eval echo "~$TARGET_USER")
 
-echo "Iniciant restauració del sistema (sense afectar /etc)."
-[ "$REMOVE_HOME" -eq 1 ] && echo " - Contingut de $TARGET_HOME serà eliminat"
-[ "${#SAVE_LIST[@]}" -gt 0 ] && echo " - Fitxers/directoris preservats: ${SAVE_LIST[*]}"
-	echo
-	read -rp "Continuar amb la restauració? (yes/no): " ans
-	[ "$ans" = "yes" ] || exit 1
-	
-# Gestió del directori personal
+echo "Starting system restore (leaving /etc untouched)."
+[ "$REMOVE_HOME" -eq 1 ] && echo " - Contents of $TARGET_HOME will be deleted"
+[ "${#SAVE_LIST[@]}" -gt 0 ] && echo " - Preserved files/directories: ${SAVE_LIST[*]}"
+echo
+read -rp "Continue with the restore? (yes/no): " ans
+[ "$ans" = "yes" ] || exit 1
+
+# home directory handling
 if [ "$REMOVE_HOME" -eq 1 ]; then
-	echo "Esborrant contingut de $TARGET_HOME..."
+	echo "Deleting contents of $TARGET_HOME..."
 	shopt -s dotglob
 	for entry in "$TARGET_HOME"/* "$TARGET_HOME"/.*; do
 		base_entry=$(basename "$entry")
@@ -78,21 +77,21 @@ if [ "$REMOVE_HOME" -eq 1 ]; then
 	done
 	shopt -u dotglob
 
-	echo "Restauració de contingut mínim de $TARGET_HOME..."
+	echo "Restoring minimal contents of $TARGET_HOME..."
 	cp -rT /etc/skel "$TARGET_HOME"
 	chown -R "$TARGET_USER":"$TARGET_USER" "$TARGET_HOME"
 fi
 
-# Sincronització de repositoris
-echo "Actualitzant repositoris..."
+# repository sync
+echo "Updating repositories..."
 xbps-install -S
 
-# Obtenir llistat de paquets instal·lats
-echo "Identificant paquets instal·lats..."
+# installed package list
+echo "Identifying installed packages..."
 mapfile -t installed < <(xbps-query -l | awk '{print $2}' | sed 's/-[^-]*_[0-9]*$//')
 
-# Obtenir llistat de paquets del sistema base
-echo "Determinant paquets de base-system..."
+# base-system package list
+echo "Determining base-system packages..."
 mapfile -t base < <(echo "base-system"; xbps-query -Rx --fulldeptree base-system | sed 's/-[^-]*_[0-9]*$//')
 
 declare -A base_map
@@ -100,32 +99,35 @@ for pkg in "${base[@]}"; do
 	base_map["$pkg"]=1
 done
 
-# Generar llista de paquets a eliminar
+# build the removal list
 remove_list=()
 for pkg in "${installed[@]}"; do
 	[[ -z "${base_map[$pkg]:-}" ]] && remove_list+=("$pkg")
 done
 
-# Eliminació de paquets no essencials
+# remove non-essential packages
 if [ "${#remove_list[@]}" -gt 0 ]; then
-	echo "Eliminant ${#remove_list[@]} paquets no essencials..."
-		xbps-remove -Ry "${remove_list[@]}"
+	echo "Removing ${#remove_list[@]} non-essential packages..."
+	xbps-remove -Ry "${remove_list[@]}"
 fi
 
-# Neteja de dependències orfes
-echo "Eliminant dependències orfes..."
+# orphan sweep
+echo "Removing orphaned dependencies..."
 xbps-remove -oy
 
-# Neteja de cache de paquets
-echo "Netejant la cache de paquets..."
+# package cache cleanup
+echo "Cleaning the package cache..."
 xbps-remove -Oy
 
-# Gestió de /var/service
-echo "Esborrant tot el contingut de /var/service..."
+# /var/service handling
+echo "Deleting everything under /var/service..."
 rm -rf /var/service/*
 mkdir -p /var/service
 
-echo "Creant symlinks per serveis imprescindibles..."
+# generated per-profile VPN units are host-local — sweep them too
+rm -rf /etc/sv/vpn-* /run/vpn
+
+echo "Creating symlinks for essential services..."
 for tty in agetty-tty{1..6}; do
 	ln -s "/etc/sv/$tty" "/var/service/$tty"
 done
@@ -136,4 +138,4 @@ ln -s "/etc/sv/sshd" "/var/service"
 ln -s "/etc/sv/acpid" "/var/service"
 
 echo
-echo "Restauració completada. Només queden paquets de base-system i $TARGET_HOME i /var/service han estat reconfigurats."
+echo "Restore complete. Only base-system packages remain, and $TARGET_HOME and /var/service have been reconfigured."
