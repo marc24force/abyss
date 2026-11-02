@@ -18,6 +18,8 @@ sudo ./abyss.sh --bootstrap [--yes]   # fresh machine: xbps deps from dependenci
   `socklog-void #service {socklog-unix,nanoklogd}` enables several).
 - `system/etc/` is copied verbatim to `/etc` at bootstrap; anything under
   `system/etc/sv/` is additionally enabled as a system service.
+- `system/etc/sudoers.d/`: generic rules (wheel) sort at `00-`, NOPASSWD
+  grants at `10+` — sudoers is last-match-wins.
 - `system/etc/kernel.d/post-install/90-grub` regenerates `grub.cfg` on every
   kernel update (needs the `grub` package).
 - `user/config/` is symlinked into `~/.config`; `user/service/` is symlinked into
