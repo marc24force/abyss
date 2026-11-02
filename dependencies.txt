@@ -30,7 +30,6 @@ ReGreet
 neovim
 niri
 foot
-swww
 quickshell
 qutebrowser
 
