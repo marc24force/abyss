@@ -44,7 +44,6 @@ config instead, or it will read a stale session environment at login.
 | pipewire        | audio server                                                   |
 | pipewire-pulse  | PulseAudio-compatible endpoint                                 |
 | wireplumber     | pipewire session policy                                        |
-| udiskie         | removable-drive automount (needs polkitd; udisksd is dbus-activated) |
 | turnstile-ready | holds login until `conf` `core_services` are up                |
 
 System services ship under `system/etc/sv/` and are enabled by the bootstrap:
@@ -63,7 +62,6 @@ variables into its exec. The supported variables and some possible variations:
 | pipewire-pulse  | `OPTS`                             | same idea, per-server flags                                                       |
 | wireplumber     | `OPTS`                             | e.g. `OPTS="--config-file /etc/wireplumber/custom.conf"`                          |
 | dbus            | `OPTS`, `DBUS_SESSION_BUS_ADDRESS` | e.g. `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus` (default)         |
-| udiskie         | `OPTS`                             | combine: `--automount`, `--tray`, `--smart-tray`, `--notify`, `--filter <STR>`, `--config <file>` |
 | turnstile-ready | `core_services`                    | sv names to wait for, e.g. `core_services="dbus pipewire wireplumber"`             |
 | location (system)| `refresh`, `retry`                | e.g. `refresh="7d"` and `retry="10m"`                                             |
 

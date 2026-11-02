@@ -14,7 +14,6 @@ xdg-desktop-portal-wlr
 seatd #service
 turnstile #service turnstiled
 dbus #service
-polkit #service polkitd
 socklog-void #service {socklog-unix,nanoklogd}
 iwd #service
 openresolv
@@ -42,7 +41,6 @@ wlsunset
 jq
 qt6-shadertools
 tlp #service
-udiskie
 
 # Fonts
 nerd-fonts
