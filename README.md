@@ -130,8 +130,10 @@ one-time code typed at every `vpn up`), `saml` (browser login via
 Supervision is plain runit, system-level so it survives logout:
 `/etc/abyss/vpn-ctl` — the only privileged command, granted to the `network`
 group via `system/etc/sudoers.d/30-vpn` — generates an `/etc/sv/vpn-<name>`
-stub per profile and links it into `/var/service`. Auto-start at boot is just
-the link without a `down` file; nothing else. Secrets travel
+stub per profile and links it into `/var/service`. `up`, `on` and `forget`
+read the profile from the invoking user's home; `down` and `off` steer any
+supervised profile — the runtime belongs to the `network` group. Auto-start
+at boot is just the link without a `down` file; nothing else. Secrets travel
 stdin → `/run/vpn/<name>.secret` → a generated openfortivpn config
 (`/run/vpn/<name>.conf`, 0600 root, tmpfs) — never argv, never visible in
 `ps`. Failed connects back off linearly (15 s per try, capped at 300 s);

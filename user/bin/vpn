@@ -3,10 +3,12 @@
 # vpn — per-user, supplier-agnostic VPN front-end.
 #
 # Profiles live in ~/.config/vpn/<name>/ (vpn.conf + optional secret) —
-# host-local, never in the rice repo. Supervision is plain runit: services
-# are generated host-side by /etc/abyss/vpn-ctl, the ONLY privileged
-# command used here (sudoers.d/30-vpn, %network, NOPASSWD). Secrets are
-# typed here and piped to vpn-ctl on stdin; from there they travel
+# host-local, never in the rice repo. up/on/forget need the profile in
+# this home; down/off steer any supervised profile — the network group
+# owns the runtime. Supervision is plain runit: services are generated
+# host-side by /etc/abyss/vpn-ctl, the ONLY privileged command used
+# here (sudoers.d/30-vpn, %network, NOPASSWD). Secrets are typed here
+# and piped to vpn-ctl on stdin; from there they travel
 # /run/vpn/<name>.secret -> a generated backend config, 0600 root tmpfs.
 # Never argv, never visible in ps.
 #
@@ -67,6 +69,11 @@ valid_name() {
 need_profile() {
 	valid_name "$1" || fatal "bad profile name: $1"
 	[ -r "$cfg/$1/vpn.conf" ] || fatal "no profile $1 (vpn add $1?)"
+}
+
+need_supervised() {
+	valid_name "$1" || fatal "bad profile name: $1"
+	[ -L "/var/service/vpn-$1" ] || fatal "no supervised profile $1"
 }
 
 # profile $1, key $2 -> value (first match, empty when absent)
@@ -232,7 +239,7 @@ cmd_up() {
 }
 
 cmd_down() {
-	need_profile "$2"
+	need_supervised "$2"
 	ctl down "$2" || exit 1
 	printf 'down\n'
 }
@@ -249,7 +256,7 @@ cmd_on() {
 }
 
 cmd_off() {
-	need_profile "$2"
+	need_supervised "$2"
 	ctl off "$2" || exit 1
 	printf '%s will not auto-start at boot\n' "$2"
 }
