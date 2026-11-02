@@ -99,6 +99,25 @@ current_ssid() {
 		}'
 }
 
+# "iwctl station get-networks" (raw) on stdin -> one visible SSID per line
+parse_networks() {
+	ansi | awk '
+		/Network name/ { hdr = 1; next }
+		!hdr { next }
+		{
+			line = $0
+			sub(/\r$/, "", line)
+			nf = split(line, f)
+			if (nf < 3) next
+			if (f[nf] !~ /^\*+$/) next
+			b = (f[1] == ">") ? 2 : 1
+			if (b > nf - 2) next
+			name = f[b]
+			for (j = b + 1; j <= nf - 2; j++) name = name " " f[j]
+			print name
+		}'
+}
+
 # "iwctl known-networks list" (raw) on stdin -> "name<TAB>security" lines
 parse_known() {
 	ansi | awk '
@@ -217,11 +236,24 @@ cmd_connect() {
 		cut -f1 | grep -qxF "$ssid"; then
 		printf 'net: no saved profile for "%s" — iwctl will ask for the passphrase\n' "$ssid" >&2
 	fi
+	# refresh the scan and wait for the SSID to become visible
+	# (max ~10 s; hidden networks fall through and are still tried)
+	station scan >/dev/null 2>&1 || true
+	i=0
+	while [ "$i" -lt 20 ]; do
+		station get-networks 2>/dev/null | parse_networks | grep -qxF "$ssid" && break
+		i=$((i + 1))
+		sleep 0.5
+	done
+
 	# iwctl prompts for the passphrase itself (stdin) and iwd saves the
 	# profile on success
-	if ! station connect "$ssid"; then
-		fatal "iwctl connect failed"
-	fi
+	try=0
+	until station connect "$ssid"; do
+		try=$((try + 1))
+		[ "$try" -ge 3 ] && fatal "iwctl connect failed"
+		sleep 2
+	done
 }
 
 cmd_disconnect() {
