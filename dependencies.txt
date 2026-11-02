@@ -14,7 +14,10 @@ turnstile #service turnstiled
 dbus #service
 polkit #service polkitd
 socklog-void #service {socklog-unix,nanoklogd}
-#iwd #service
+iwd #service
+dhcpcd #service
+openresolv
+openfortivpn
 
 # Important apps
 git

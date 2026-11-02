@@ -1,0 +1,293 @@
+#!/bin/sh
+
+# net — drive the iwd Wi-Fi stack from the CLI.
+#
+# One tool per task: iwd scans/authenticates/roams and owns its profiles in
+# /var/lib/iwd, dhcpcd addresses, openresolv owns /etc/resolv.conf. This
+# script only front-ends iwctl.
+#
+# Privileges: sudoers.d/30-net grants %network passwordless iwctl — and that
+# is the ONLY privileged command used here. Even profile management goes
+# through iwctl (known-networks). The one exception is "net provision":
+# writing an 802.1X profile needs plain sudo. Passphrases are typed into
+# iwctl's own prompt (stdin), never passed as argv.
+
+iface="${NET_IF:-}"
+state_dir=/var/lib/iwd
+LC_ALL=C
+export LC_ALL
+
+trap 'stty echo 2>/dev/null' INT TERM EXIT
+
+usage() {
+	cat >&2 <<EOF
+usage: net status
+       net scan [n]          scan and list up to n (default 6) strongest networks
+       net connect <ssid>    connect (iwctl asks for the passphrase on first use)
+       net disconnect
+       net ls                list known networks
+       net forget <ssid>     remove a saved network profile
+       net provision <ssid>  create an 802.1X profile (needs the admin password once)
+
+env: NET_IF (default: first station in "iwctl station list")
+EOF
+	exit 2
+}
+
+fatal() {
+	printf 'net: %s\n' "$1" >&2
+	exit 1
+}
+
+# iwctl colorizes its tables with ANSI escapes even when piped; strip them
+ansi() { sed 's/\x1b\[[0-9;]*[a-zA-Z]//g'; }
+
+# the only privileged call in this script (NOPASSWD via sudoers.d/30-net)
+iwc() { sudo -n iwctl "$@"; }
+
+# ssid -> profile file name: iwd percent-escapes bytes outside [A-Za-z0-9._-]
+encode_ssid() {
+	printf '%s' "$1" | awk '
+		BEGIN {
+			allowed = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz._-"
+			for (k = 1; k < 256; k++) ord[sprintf("%c", k)] = k
+		}
+		{
+			s = $0
+			for (j = 1; j <= length(s); j++) {
+				c = substr(s, j, 1)
+				if (index(allowed, c) > 0) printf("%s", c)
+				else printf("%%%02X", ord[c])
+			}
+		}
+		END { printf("\n") }'
+}
+
+# read a secret: hidden when tty, plain when piped
+read_secret() {
+	if [ -t 0 ]; then
+		printf '%s: ' "$2" >&2
+		stty -echo
+		IFS= read -r "$1"
+		stty echo
+		printf '\n' >&2
+	else
+		IFS= read -r "$1"
+	fi
+}
+
+# station name: NET_IF wins; otherwise the first station iwd knows about
+need_iface() {
+	[ -n "$iface" ] && return 0
+	out=$(iwc station list 2>/dev/null) ||
+		fatal "passwordless iwctl unavailable"
+	iface=$(printf '%s\n' "$out" | ansi | awk '
+		$1 == "Name" { hdr = 1; next }
+		hdr && /^[[:space:]]*[-]+[[:space:]]*$/ { next }
+		hdr && NF { print $1; exit }')
+	[ -n "$iface" ] || fatal "no iwd station found"
+}
+
+station() { iwc station "$iface" "$@"; }
+
+current_ssid() {
+	station show 2>/dev/null | ansi |
+		awk 'match($0, /Connected network:?[[:space:]]+/) {
+			s = substr($0, RSTART + RLENGTH)
+			sub(/[[:space:]]+$/, "", s)
+			print s
+		}'
+}
+
+# "iwctl known-networks list" (raw) on stdin -> "name<TAB>security" lines
+parse_known() {
+	ansi | awk '
+		$1 == "Name" { hdr = 1; next }
+		hdr && /^[[:space:]]*[-]+[[:space:]]*$/ { next }
+		hdr && NF {
+			nf = split($0, f)
+			sec = 0
+			for (j = 1; j <= nf; j++)
+				if (f[j] == "psk" || f[j] == "open" || f[j] == "8021x") { sec = j; break }
+			if (!sec) next
+			name = f[1]
+			for (k = 2; k < sec; k++) name = name " " f[k]
+			printf "%s\t%s\n", name, f[sec]
+		}'
+}
+
+cmd_status() {
+	out=$(station show 2>/dev/null) || fatal "iwctl failed on $iface"
+	clean=$(printf '%s\n' "$out" | ansi)
+	state=$(printf '%s\n' "$clean" |
+		awk 'match($0, /State:?[[:space:]]+/) {
+			s = substr($0, RSTART + RLENGTH)
+			sub(/[[:space:]]+$/, "", s)
+			print s
+		}')
+	ssid=$(printf '%s\n' "$clean" |
+		awk 'match($0, /Connected network:?[[:space:]]+/) {
+			s = substr($0, RSTART + RLENGTH)
+			sub(/[[:space:]]+$/, "", s)
+			print s
+		}')
+	ip=$(ip -4 -o addr show dev "$iface" scope global 2>/dev/null |
+		awk '{split($4, a, "/"); print a[1]}')
+	[ -n "$state" ] || state=disconnected
+	printf 'iface=%s state=%s ssid=%s ip=%s\n' "$iface" "$state" "${ssid:--}" "${ip:--}"
+}
+
+cmd_scan() {
+	n="${1:-6}"
+	case "$n" in '' | *[!0-9]*) fatal "scan count must be numeric" ;; esac
+
+	station scan >/dev/null 2>&1 || true
+
+	# wait for the scan round to finish (max ~6 s)
+	i=0
+	while [ "$i" -lt 12 ]; do
+		s=$(station show 2>/dev/null | ansi |
+			awk 'match($0, /Scanning:?[[:space:]]+/) {
+				s = substr($0, RSTART + RLENGTH)
+				sub(/[[:space:]]+$/, "", s)
+				print s
+			}')
+		[ "$s" = "no" ] && break
+		i=$((i + 1))
+		sleep 0.5
+	done
+
+	# parse the raw (still colored) table: the signal bar is a 4-slot run
+	# of asterisks, bright part = strength; count the bright run, then
+	# strip ANSI and split the fields.
+	rows=$(station get-networks 2>/dev/null | awk '
+		BEGIN {
+			esc = sprintf("%c", 27)
+			dim = esc "[1;90m"
+			re = esc "\\[[0-9;]*[a-zA-Z]"
+		}
+		/Network name/ { hdr = 1; next }
+		!hdr { next }
+		{
+			line = $0
+			sub(/\r$/, "", line)
+			sub(/[[:space:]]+$/, "", line)
+			s = line
+			off = 0
+			while ((i = index(s, dim)) > 0) {
+				off += i
+				s = substr(s, i + length(dim))
+			}
+			left = (off > 0) ? substr(line, 1, off - 1) : line
+			sig = 0
+			for (k = length(left); k >= 1 && substr(left, k, 1) == "*"; k--)
+				sig++
+			gsub(re, "", line)
+			nf = split(line, f)
+			if (nf < 3) next
+			if (f[nf] !~ /^\*+$/) next
+			cur = (f[1] == ">") ? 1 : 0
+			b = cur ? 2 : 1
+			if (b > nf - 2) next
+			name = f[b]
+			for (j = b + 1; j <= nf - 2; j++) name = name " " f[j]
+			printf "%d\t%s\t%d\t%s\n", sig, f[nf - 1], cur, name
+		}')
+	if [ -z "$rows" ]; then
+		printf 'no networks listed\n'
+		return 0
+	fi
+	printf '%s\n' "$rows" | sort -t "$(printf '\t')" -k1,1rn |
+		head -n "$n" |
+		while IFS="$(printf '\t')" read -r sig sec cur name; do
+			m=""
+			[ "$cur" = 1 ] && m=" *"
+			printf '%2d/4  %-4s  %s%s\n' "$sig" "$sec" "$name" "$m"
+		done
+}
+
+cmd_connect() {
+	[ -n "${2:-}" ] || usage
+	ssid=$2
+	if [ "$(current_ssid)" = "$ssid" ]; then
+		printf 'already connected to %s\n' "$ssid"
+		return 0
+	fi
+	if ! iwc known-networks list 2>/dev/null | parse_known |
+		cut -f1 | grep -qxF "$ssid"; then
+		printf 'net: no saved profile for "%s" — iwctl will ask for the passphrase\n' "$ssid" >&2
+	fi
+	# iwctl prompts for the passphrase itself (stdin) and iwd saves the
+	# profile on success
+	if ! station connect "$ssid"; then
+		fatal "iwctl connect failed"
+	fi
+}
+
+cmd_disconnect() {
+	station disconnect || fatal "iwctl disconnect failed"
+}
+
+cmd_ls() {
+	out=$(iwc known-networks list 2>/dev/null) ||
+		fatal "passwordless iwctl unavailable"
+	rows=$(printf '%s\n' "$out" | parse_known)
+	[ -n "$rows" ] || { printf 'no saved networks\n'; return 0; }
+	printf '%s\n' "$rows" | while IFS="$(printf '\t')" read -r name sec; do
+		printf '%s (%s)\n' "$name" "$sec"
+	done
+}
+
+cmd_forget() {
+	[ -n "${2:-}" ] || usage
+	iwc known-networks "$2" forget || fatal "iwctl forget failed"
+}
+
+cmd_provision() {
+	[ -n "${2:-}" ] || usage
+	ssid=$2
+	printf 'EAP method [PEAP|TTLS] (PEAP): '
+	IFS= read -r m
+	method=$(printf '%s' "${m:-PEAP}" | tr '[:lower:]' '[:upper:]')
+	case "$method" in
+		PEAP) phase2=MSCHAPV2 ;;
+		TTLS) phase2=PAP ;;
+		*) fatal "unsupported EAP method: $method" ;;
+	esac
+
+	printf 'outer/anonymous identity (blank: none): '
+	IFS= read -r anon
+	printf 'inner identity: '
+	IFS= read -r ident
+	read_secret pass 'password'
+	[ -n "$ident" ] || fatal "inner identity required"
+	[ -n "$pass" ] || fatal "empty password"
+
+	enc=$(encode_ssid "$ssid")
+	{
+		printf '[Security]\n'
+		printf 'EAP-Method=%s\n' "$method"
+		[ -n "$anon" ] && printf 'EAP-Identity=%s\n' "$anon"
+		printf 'EAP-Phase2-Method=%s\n' "$phase2"
+		printf 'EAP-Phase2-Identity=%s\n' "$ident"
+		printf 'EAP-Phase2-Password=%s\n' "$pass"
+		printf '[Settings]\nAutoConnect=true\n'
+	} | sudo tee "$state_dir/$enc.8021x" >/dev/null
+	sudo chmod 600 "$state_dir/$enc.8021x"
+	printf 'profile written: %s/%s.8021x\n' "$state_dir" "$enc"
+}
+
+[ $# -ge 1 ] || usage
+case $1 in
+	status | scan | connect | disconnect) need_iface ;;
+esac
+case $1 in
+	status) cmd_status ;;
+	scan) cmd_scan "${2:-6}" ;;
+	connect) cmd_connect "$@" ;;
+	disconnect) cmd_disconnect ;;
+	ls) cmd_ls ;;
+	forget) cmd_forget "$@" ;;
+	provision) cmd_provision "$@" ;;
+	*) usage ;;
+esac

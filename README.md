@@ -21,7 +21,13 @@ sudo ./abyss.sh --bootstrap [--yes]   # fresh machine: xbps deps from dependenci
 - `system/etc/kernel.d/post-install/90-grub` regenerates `grub.cfg` on every
   kernel update (needs the `grub` package).
 - `user/config/` is symlinked into `~/.config`; `user/service/` is symlinked into
-  `~/.service` (stale links are removed).
+  `~/.service` (stale links are removed); `user/bin/`
+  is symlinked into `~/.local/bin` (add-only: your own tools are kept).
+
+Full re-provision: `sudo ./factory_reset.sh` takes the box back to base-system
+packages + your home (wpa_supplicant and dhcpcd survive as the network bridge),
+then `sudo ./abyss.sh --bootstrap` rebuilds the rice — installing iwd/openresolv,
+enabling their services and retiring wpa_supplicant on the way.
 
 ## User services (`~/.service` ← `user/service`)
 
@@ -58,12 +64,43 @@ variables into its exec. The supported variables and some possible variations:
 | turnstile-ready | `core_services`                    | sv names to wait for, e.g. `core_services="dbus pipewire wireplumber"`             |
 | location (system)| `refresh`, `retry`                | e.g. `refresh="7d"` and `retry="10m"`                                             |
 
+## Network
+
+`iwd` (Wi-Fi scan/auth/roam) + `dhcpcd` (addressing) + `openresolv` (owner of
+`/etc/resolv.conf`) + `openfortivpn` (work VPN, run manually). iwd runs with
+`EnableNetworkConfiguration=false`, so addressing stays with dhcpcd.
+
+Both dhcpcd and openfortivpn speak resolvconf natively: a DHCP lease refresh
+while the VPN is up *merges* the two DNS sets instead of last-writer-wins.
+The host-local openfortivpn config should use
+`--set-dns=1 --use-resolvconf=1 --pppd-use-peerdns=0`.
+
+Wi-Fi is driven by `user/bin/net` → `~/.local/bin/net` — a plain CLI that only
+front-ends `iwctl`:
+
+| command                | effect                                                              |
+|------------------------|---------------------------------------------------------------------|
+| `net status`           | `iface=… state=… ssid=… ip=…` (machine-parseable)                    |
+| `net scan [n=6]`       | scan and list the n strongest networks (`*` = currently connected)   |
+| `net connect <ssid>`   | connect; iwctl itself asks for the passphrase on first use and iwd saves the profile |
+| `net disconnect`       | disconnect the station                                               |
+| `net ls`               | saved networks (name + security)                                     |
+| `net forget <ssid>`    | remove a saved profile (via `iwctl known-networks`)                  |
+| `net provision <ssid>` | 802.1X questionnaire (PEAP/TTLS); needs the admin password once |
+
+Privileges: `system/etc/sudoers.d/30-net` grants passwordless `/usr/bin/iwctl`
+to the `network` group only — and `net` uses no other privileged command:
+profiles are managed through `iwctl known-networks` (never by touching
+`/var/lib/iwd` directly). Passphrases and 802.1X secrets live in
+`/var/lib/iwd`, never in this repo. `iwctl` colorizes its tables even when
+piped — `net` strips the ANSI escapes before parsing.
+
 ## Groups
 
 ```
-TARGET_USER: _seatd audio video input   # seatd session + device access (no logind ACLs on runit)
-_greeter:    video _seatd               # the greeter draws its session through seatd
+TARGET_USER: _seatd audio video input network   # seatd + nodes + Wi-Fi control (sudoers.d/30-net)
+_greeter:    video _seatd                       # the greeter draws its session through seatd
 ```
 
-Both are set by `abyss.sh --bootstrap`. No further groups are required by the
-services above.
+Both are set by `abyss.sh --bootstrap`. The `network` group otherwise does
+nothing: it only unlocks `iwctl` via `system/etc/sudoers.d/30-net`.

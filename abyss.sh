@@ -111,12 +111,19 @@ if [ "$BOOTSTRAP" = "true" ]; then
 		echo "Skipping..."
 	fi
 
+	echo "Retiring wpa_supplicant"
+	if confirm; then
+		rm -f /var/service/wpa_supplicant
+	else
+		echo "Skipping..."
+	fi
+
 	echo "Adding required groups"
 	if confirm; then
 		getent group _seatd >/dev/null 2>&1 && usermod -aG _seatd _greeter
 		getent group video  >/dev/null 2>&1 && usermod -aG video _greeter
 		# runit has no logind ACLs: device access comes from plain groups
-		for g in _seatd audio video input; do
+		for g in _seatd audio video input network; do
 			getent group "$g" >/dev/null 2>&1 && usermod -aG "$g" "${TARGET_USER}"
 		done
 	else
@@ -143,6 +150,19 @@ if confirm; then
 		ln -sf "$d" "${TARGET_HOME}/.service/$(basename "$d")"
 	done
 	chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/.service
+else
+	echo "Skipping..."
+fi
+
+echo "Syncing user bins (~/.local/bin)"
+if confirm; then
+	mkdir -p ${TARGET_HOME}/.local/bin
+	# add-only: users may keep their own tools there
+	for f in "$DIR"/user/bin/*; do
+		[ -f "$f" ] || continue
+		ln -sf "$f" "${TARGET_HOME}/.local/bin/$(basename "$f")"
+	done
+	chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/.local/bin
 else
 	echo "Skipping..."
 fi

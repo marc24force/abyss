@@ -130,6 +130,7 @@ for tty in agetty-tty{1..6}; do
 	ln -s "/etc/sv/$tty" "/var/service/$tty"
 done
 ln -s "/etc/sv/dhcpcd" "/var/service"
+# wifi must outlive the purge: the next --bootstrap needs the network
 ln -s "/etc/sv/wpa_supplicant" "/var/service"
 ln -s "/etc/sv/sshd" "/var/service"
 ln -s "/etc/sv/acpid" "/var/service"
