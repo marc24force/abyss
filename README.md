@@ -25,9 +25,10 @@ sudo ./abyss.sh --bootstrap [--yes]   # fresh machine: xbps deps from dependenci
   is symlinked into `~/.local/bin` (add-only: your own tools are kept).
 
 Full re-provision: `sudo ./factory_reset.sh` takes the box back to base-system
-packages + your home (wpa_supplicant and dhcpcd survive as the network bridge),
-then `sudo ./abyss.sh --bootstrap` rebuilds the rice — installing iwd/openresolv,
-enabling their services and retiring wpa_supplicant on the way.
+packages + your home (wpa_supplicant + dhcpcd survive as the rescue network
+bridge), then `sudo ./abyss.sh --bootstrap` rebuilds the rice — installing
+iwd/openresolv, enabling their services and retiring wpa_supplicant *and*
+dhcpcd on the way.
 
 ## User services (`~/.service` ← `user/service`)
 
@@ -66,12 +67,13 @@ variables into its exec. The supported variables and some possible variations:
 
 ## Network
 
-`iwd` (Wi-Fi scan/auth/roam) + `dhcpcd` (addressing) + `openresolv` (owner of
+`iwd` (Wi-Fi scan/auth/roam **and addressing**) + `openresolv` (owner of
 `/etc/resolv.conf`) + `openfortivpn` (VPN tunnels — see [VPN](#vpn) below).
-iwd runs with `EnableNetworkConfiguration=false`, so addressing stays with
-dhcpcd.
+iwd runs with `EnableNetworkConfiguration=true`: its built-in DHCP client
+configures the interface, so the daemon that associates also starts the
+lease.
 
-Both dhcpcd and openfortivpn speak resolvconf natively: a DHCP lease refresh
+Both iwd and openfortivpn speak resolvconf natively: a DHCP lease refresh
 while the VPN is up *merges* the two DNS sets instead of last-writer-wins
 (the per-profile openfortivpn configs are generated host-side with
 `set-dns = 1`, `use-resolvconf = 1` and `pppd-use-peerdns = 0`).
@@ -95,6 +97,12 @@ profiles are managed through `iwctl known-networks` (never by touching
 `/var/lib/iwd` directly). Passphrases and 802.1X secrets live in
 `/var/lib/iwd`, never in this repo. `iwctl` colorizes its tables even when
 piped — `net` strips the ANSI escapes before parsing.
+
+Wired interfaces are not iwd's business. If one ever shows up, enable Void's
+per-interface service instead (`/etc/sv/dhcpcd-<iface>` — copy it to the real
+interface name and link it into `/var/service`): a single-interface dhcpcd
+instance speaks resolvconf just like iwd does, so the DNS merge keeps
+working.
 
 ## VPN
 

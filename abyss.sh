@@ -111,9 +111,9 @@ if [ "$BOOTSTRAP" = "true" ]; then
 		echo "Skipping..."
 	fi
 
-	echo "Retiring wpa_supplicant"
+	echo "Retiring wpa_supplicant and dhcpcd"
 	if confirm; then
-		rm -f /var/service/wpa_supplicant
+		rm -f /var/service/wpa_supplicant /var/service/dhcpcd
 	else
 		echo "Skipping..."
 	fi

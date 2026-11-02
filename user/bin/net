@@ -3,8 +3,8 @@
 # net — drive the iwd Wi-Fi stack from the CLI.
 #
 # One tool per task: iwd scans/authenticates/roams and owns its profiles in
-# /var/lib/iwd, dhcpcd addresses, openresolv owns /etc/resolv.conf. This
-# script only front-ends iwctl.
+# /var/lib/iwd — and addresses the interface with its built-in DHCP client —
+# while openresolv owns /etc/resolv.conf. This script only front-ends iwctl.
 #
 # Privileges: sudoers.d/30-net grants %network passwordless iwctl — and that
 # is the ONLY privileged command used here. Even profile management goes
