@@ -89,7 +89,7 @@ front-ends `iwctl`:
 | `net disconnect`       | disconnect the station                                               |
 | `net ls`               | saved networks (name + security)                                     |
 | `net forget <ssid>`    | remove a saved profile (via `iwctl known-networks`)                  |
-| `net provision <ssid>` | 802.1X questionnaire (PEAP/TTLS); needs the admin password once |
+| `net provision <ssid>` | 802.1X questionnaire (PEAP/TTLS, phase 2, embedded CA); needs the admin password once |
 
 Privileges: `system/etc/sudoers.d/30-net` grants passwordless `/usr/bin/iwctl`
 to the `network` group only — and `net` uses no other privileged command:

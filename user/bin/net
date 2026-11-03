@@ -305,14 +305,25 @@ cmd_forget() {
 cmd_provision() {
 	[ -n "${2:-}" ] || usage
 	ssid=$2
-	printf 'EAP method [PEAP|TTLS] (PEAP): '
+	printf 'EAP method [PEAP|TTLS] (TTLS): '
 	IFS= read -r m
-	method=$(printf '%s' "${m:-PEAP}" | tr '[:lower:]' '[:upper:]')
+	method=$(printf '%s' "${m:-TTLS}" | tr '[:lower:]' '[:upper:]')
 	case "$method" in
-		PEAP) phase2=MSCHAPV2 ;;
-		TTLS) phase2=PAP ;;
+		PEAP)
+			def2=MSCHAPV2
+			inner='GTC MD5 MSCHAPV2 PWD TLS TTLS'
+			;;
+		TTLS)
+			def2=Tunneled-MSCHAPv2
+			inner='Tunneled-PAP Tunneled-CHAP Tunneled-MSCHAP Tunneled-MSCHAPv2 GTC MD5 MSCHAPV2 PWD TLS TTLS'
+			;;
 		*) fatal "unsupported EAP method: $method" ;;
 	esac
+	printf 'phase 2 method (%s): ' "$def2"
+	IFS= read -r p2
+	phase2=${p2:-$def2}
+	for v in $inner; do [ "$v" = "$phase2" ] && break; done
+	[ "$v" = "$phase2" ] || fatal "unsupported phase 2 method: $phase2"
 
 	printf 'outer/anonymous identity (blank: none): '
 	IFS= read -r anon
@@ -322,15 +333,25 @@ cmd_provision() {
 	[ -n "$ident" ] || fatal "inner identity required"
 	[ -n "$pass" ] || fatal "empty password"
 
+	printf 'CA certificate PEM file (blank: none): '
+	IFS= read -r ca
+	[ -z "$ca" ] || grep -q 'BEGIN CERTIFICATE' "$ca" 2>/dev/null ||
+		fatal "not a PEM file: $ca"
+	printf 'server domain mask (blank: none): '
+	IFS= read -r mask
+
 	enc=$(encode_ssid "$ssid")
 	{
 		printf '[Security]\n'
 		printf 'EAP-Method=%s\n' "$method"
 		[ -n "$anon" ] && printf 'EAP-Identity=%s\n' "$anon"
-		printf 'EAP-Phase2-Method=%s\n' "$phase2"
-		printf 'EAP-Phase2-Identity=%s\n' "$ident"
-		printf 'EAP-Phase2-Password=%s\n' "$pass"
-		printf '[Settings]\nAutoConnect=true\n'
+		[ -n "$ca" ] && printf 'EAP-%s-CACert=embed:ca\n' "$method"
+		[ -n "$mask" ] && printf 'EAP-%s-ServerDomainMask=%s\n' "$method" "$mask"
+		printf 'EAP-%s-Phase2-Method=%s\n' "$method" "$phase2"
+		printf 'EAP-%s-Phase2-Identity=%s\n' "$method" "$ident"
+		printf 'EAP-%s-Phase2-Password=%s\n' "$method" "$pass"
+		printf '\n[Settings]\nAutoConnect=true\n'
+		[ -n "$ca" ] && { printf '\n[@pem@ca]\n'; cat "$ca"; }
 	} | sudo tee "$state_dir/$enc.8021x" >/dev/null
 	sudo chmod 600 "$state_dir/$enc.8021x"
 	printf 'profile written: %s/%s.8021x\n' "$state_dir" "$enc"
