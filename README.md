@@ -112,7 +112,7 @@ this repo). `user/bin/vpn` → `~/.local/bin/vpn` front-ends them:
 
 | command               | effect                                                                    |
 |-----------------------|---------------------------------------------------------------------------|
-| `vpn status`          | one line per supervised profile (`name state=… ip=…`, machine-parseable)   |
+| `vpn status`          | one line per supervised profile (`name state=… boot=… since=… ip=…`)      |
 | `vpn ls`              | profiles + auth mode + boot behaviour + current state                     |
 | `vpn up <profile>`    | connect; asks for the one-time code on otp, prints and opens the login link on saml |
 | `vpn down <profile>`  | disconnect                                                                |

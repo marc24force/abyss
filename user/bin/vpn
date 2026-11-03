@@ -86,6 +86,25 @@ prof_state() {
 	sed -n 's/^state=//p' "$run/$1" 2>/dev/null | head -n 1
 }
 
+# boot behaviour of profile $1: auto, manual, "-" when unsupervised
+boot_mode() {
+	[ -L "/var/service/vpn-$1" ] || { printf '%s' -; return; }
+	[ -e "/var/service/vpn-$1/down" ] && printf manual || printf auto
+}
+
+# epoch $1 -> elapsed since then, as h/m/s
+rel_since() {
+	e=$(( $(date +%s) - $1 ))
+	[ "$e" -lt 0 ] && e=0
+	h=$((e / 3600))
+	m=$((e % 3600 / 60))
+	s=$((e % 60))
+	if [ "$h" -gt 0 ]; then printf '%dh%dm%ds' "$h" "$m" "$s"
+	elif [ "$m" -gt 0 ]; then printf '%dm%ds' "$m" "$s"
+	else printf '%ds' "$s"
+	fi
+}
+
 # the only privileged call in this script (NOPASSWD via sudoers.d/30-vpn,
 # granted to the network group)
 ctl() {
@@ -160,15 +179,17 @@ report() {
 
 cmd_status() {
 	[ -s "$run/status" ] || { printf 'nothing under supervision\n'; return 0; }
-	while IFS= read -r n rest; do
-		st= extra=
+	while read -r n rest; do
+		st= since= extra=
 		for kv in $rest; do
 			case "$kv" in
 				state=*) st=${kv#state=} ;;
+				since=*) since=$(rel_since "${kv#since=}") ;;
 				ip=* | retry_in=* | reason=*) extra="$extra $kv" ;;
 			esac
 		done
-		printf '%-12s %-12s %s\n' "$n" "${st:--}" "$extra"
+		printf '%-12s state=%s boot=%s since=%s%s\n' \
+			"$n" "${st:--}" "$(boot_mode "$n")" "${since:--}" "$extra"
 	done < "$run/status"
 }
 
@@ -180,12 +201,8 @@ cmd_ls() {
 		n=${n##*/}
 		valid_name "$n" || continue
 		auth=$(conf_val "$n" auth)
-		boot=-
-		if [ -L "/var/service/vpn-$n" ]; then
-			if [ -e "/var/service/vpn-$n/down" ]; then boot=manual; else boot=auto; fi
-		fi
 		st=$(prof_state "$n")
-		printf '%-12s %-8s %-12s %s\n' "$n" "${auth:-password}" "$boot" "${st:--}"
+		printf '%-12s %-8s %-12s %s\n' "$n" "${auth:-password}" "$(boot_mode "$n")" "${st:--}"
 		found=1
 	done
 	[ "$found" = 1 ] || printf 'no profiles (vpn add <name>)\n'
