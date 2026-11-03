@@ -85,6 +85,23 @@ read_secret() {
 	fi
 }
 
+# read a file path: tab completion through bash readline when a tty is
+# attached (bash optional — plain read otherwise); expands a leading ~
+# so readline-completed paths keep working
+read_path() {
+	if [ -t 0 ] && command -v bash >/dev/null 2>&1; then
+		p=$(bash -c 'read -e -r -p "$1: " v && printf "%s" "$v"' _ "$1")
+	else
+		printf '%s: ' "$1" >&2
+		IFS= read -r p || p=
+	fi
+	case $p in
+		'~') p=$HOME ;;
+		'~/'*) p=$HOME/${p#\~/} ;;
+	esac
+	printf '%s' "$p"
+}
+
 # station name: NET_IF wins; otherwise the first station iwd knows about
 need_iface() {
 	[ -n "$iface" ] && return 0
@@ -342,8 +359,7 @@ cmd_provision() {
 	[ -n "$ident" ] || fatal "inner identity required"
 	[ -n "$pass" ] || fatal "empty password"
 
-	printf 'CA certificate PEM file (blank: none): '
-	IFS= read -r ca
+	ca=$(read_path 'CA certificate PEM file (blank: none)')
 	[ -z "$ca" ] || grep -q 'BEGIN CERTIFICATE' "$ca" 2>/dev/null ||
 		fatal "not a PEM file: $ca"
 	printf 'server domain mask (blank: none): '
