@@ -186,12 +186,15 @@ cmd_scan() {
 	done
 
 	# parse the raw (still colored) table: the signal bar is a 4-slot run
-	# of asterisks, bright part = strength; count the bright run, then
-	# strip ANSI and split the fields.
+	# of asterisks, bright part = strength. Empty slots and the connected
+	# marker both print dim, and the marker adds its own dim run, so dim
+	# starts are marked before stripping ANSI; filled = the asterisks
+	# ending at the bar's dim start, or the whole run if the bar is full.
 	rows=$(station get-networks 2>/dev/null | awk '
 		BEGIN {
 			esc = sprintf("%c", 27)
 			dim = esc "[1;90m"
+			dimst = sprintf("%c", 1)
 			re = esc "\\[[0-9;]*[a-zA-Z]"
 		}
 		/Network name/ { hdr = 1; next }
@@ -200,15 +203,21 @@ cmd_scan() {
 			line = $0
 			sub(/\r$/, "", line)
 			sub(/[[:space:]]+$/, "", line)
-			s = line
-			off = 0
-			while ((i = index(s, dim)) > 0) {
-				off += i
-				s = substr(s, i + length(dim))
+			t = line
+			while ((i = index(t, dim)) > 0)
+				t = substr(t, 1, i - 1) dimst substr(t, i + length(dim))
+			gsub(re, "", t)
+			last = 0
+			j = 1
+			while ((i = index(substr(t, j), dimst)) > 0) {
+				last = j + i - 1
+				j = last + 1
 			}
-			left = (off > 0) ? substr(line, 1, off - 1) : line
+			bar = t
+			if (last > 0 && substr(t, last + 1, 1) == "*")
+				bar = substr(t, 1, last - 1)
 			sig = 0
-			for (k = length(left); k >= 1 && substr(left, k, 1) == "*"; k--)
+			for (k = length(bar); k >= 1 && substr(bar, k, 1) == "*"; k--)
 				sig++
 			gsub(re, "", line)
 			nf = split(line, f)
