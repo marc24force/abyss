@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# net — drive the iwd Wi-Fi stack from the CLI.
+# wnet — drive the iwd Wi-Fi stack from the CLI.
 #
 # One tool per task: iwd scans/authenticates/roams and owns its profiles in
 # /var/lib/iwd — and addresses the interface with its built-in DHCP client —
@@ -8,11 +8,11 @@
 #
 # Privileges: sudoers.d/30-net grants %network passwordless iwctl — and that
 # is the ONLY privileged command used here. Even profile management goes
-# through iwctl (known-networks). The one exception is "net provision":
+# through iwctl (known-networks). The one exception is "wnet provision":
 # writing an 802.1X profile needs plain sudo. Passphrases are typed into
 # iwctl's own prompt (stdin), never passed as argv.
 
-iface="${NET_IF:-}"
+iface="${WNET_IF:-}"
 state_dir=/var/lib/iwd
 LC_ALL=C
 export LC_ALL
@@ -24,21 +24,21 @@ trap 'stty echo 2>/dev/null' EXIT
 
 usage() {
 	cat >&2 <<EOF
-usage: net status
-       net scan [n]          scan and list up to n (default 6) strongest networks
-       net connect <ssid>    connect (iwctl asks for the passphrase on first use)
-       net disconnect
-       net ls                list known networks
-       net forget <ssid>     remove a saved network profile
-       net provision <ssid>  create an 802.1X profile (needs the admin password once)
+usage: wnet status
+       wnet scan [n]          scan and list up to n (default 6) strongest networks
+       wnet connect <ssid>    connect (iwctl asks for the passphrase on first use)
+       wnet disconnect
+       wnet ls                list known networks
+       wnet forget <ssid>     remove a saved network profile
+       wnet provision <ssid>  create an 802.1X profile (needs the admin password once)
 
-env: NET_IF (default: first station in "iwctl station list")
+env: WNET_IF (default: first station in "iwctl station list")
 EOF
 	exit 2
 }
 
 fatal() {
-	printf 'net: %s\n' "$1" >&2
+	printf 'wnet: %s\n' "$1" >&2
 	exit 1
 }
 
@@ -102,7 +102,7 @@ read_path() {
 	printf '%s' "$p"
 }
 
-# station name: NET_IF wins; otherwise the first station iwd knows about
+# station name: WNET_IF wins; otherwise the first station iwd knows about
 need_iface() {
 	[ -n "$iface" ] && return 0
 	out=$(iwc station list 2>/dev/null) ||
@@ -272,7 +272,7 @@ cmd_connect() {
 		known=1
 	else
 		known=0
-		printf 'net: no saved profile for "%s" — iwctl will ask for the passphrase\n' "$ssid" >&2
+		printf 'wnet: no saved profile for "%s" — iwctl will ask for the passphrase\n' "$ssid" >&2
 	fi
 	# refresh the scan and wait for the SSID to become visible
 	# (max ~10 s; hidden networks fall through and are still tried)

@@ -78,25 +78,25 @@ while the VPN is up *merges* the two DNS sets instead of last-writer-wins
 (the per-profile openfortivpn configs are generated host-side with
 `set-dns = 1`, `use-resolvconf = 1` and `pppd-use-peerdns = 0`).
 
-Wi-Fi is driven by `user/bin/net` → `~/.local/bin/net` — a plain CLI that only
-front-ends `iwctl`:
+Wi-Fi is driven by `user/bin/wnet` → `~/.local/bin/wnet` — a plain CLI that
+only front-ends `iwctl`:
 
-| command                | effect                                                              |
-|------------------------|---------------------------------------------------------------------|
-| `net status`           | `iface=… state=… ssid=… ip=…` (machine-parseable)                    |
-| `net scan [n=6]`       | scan and list the n strongest networks (`*` = currently connected)   |
-| `net connect <ssid>`   | connect; iwctl itself asks for the passphrase on first use and iwd saves the profile |
-| `net disconnect`       | disconnect the station                                               |
-| `net ls`               | saved networks (name + security)                                     |
-| `net forget <ssid>`    | remove a saved profile (via `iwctl known-networks`)                  |
-| `net provision <ssid>` | 802.1X questionnaire (PEAP/TTLS, phase 2, embedded CA); needs the admin password once |
+| command                  | effect                                                              |
+|--------------------------|---------------------------------------------------------------------|
+| `wnet status`            | `iface=… state=… ssid=… ip=…` (machine-parseable)                    |
+| `wnet scan [n=6]`        | scan and list the n strongest networks (`*` = currently connected)   |
+| `wnet connect <ssid>`    | connect; iwctl itself asks for the passphrase on first use and iwd saves the profile |
+| `wnet disconnect`        | disconnect the station                                               |
+| `wnet ls`                | saved networks (name + security)                                     |
+| `wnet forget <ssid>`     | remove a saved profile (via `iwctl known-networks`)                  |
+| `wnet provision <ssid>`  | 802.1X questionnaire (PEAP/TTLS, phase 2, embedded CA); needs the admin password once |
 
 Privileges: `system/etc/sudoers.d/30-net` grants passwordless `/usr/bin/iwctl`
-to the `network` group only — and `net` uses no other privileged command:
+to the `network` group only — and `wnet` uses no other privileged command:
 profiles are managed through `iwctl known-networks` (never by touching
 `/var/lib/iwd` directly). Passphrases and 802.1X secrets live in
 `/var/lib/iwd`, never in this repo. `iwctl` colorizes its tables even when
-piped — `net` strips the ANSI escapes before parsing.
+piped — `wnet` strips the ANSI escapes before parsing.
 
 Wired interfaces are not iwd's business. If one ever shows up, enable Void's
 per-interface service instead (`/etc/sv/dhcpcd-<iface>` — copy it to the real
